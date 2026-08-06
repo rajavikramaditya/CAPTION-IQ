@@ -15,6 +15,7 @@ Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: uplo
 - Integrations: emergentintegrations, EMERGENT_LLM_KEY in backend/.env.
 
 ## Implemented (2026-06)
+### v0 — Studio MVP
 - Real Whisper transcription + AI entity tagging (verified end-to-end)
 - Live caption preview overlay synced to video time
 - Semantic Highlighting (yellow/blue/green) in transcript + overlay
@@ -22,12 +23,20 @@ Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: uplo
 - "Try demo" sample Hinglish flow
 - Light/clean UI per design guidelines; all interactive elements have data-testid
 
+### v1 — Foundation (M-CORE + M-INGEST) ✅
+- Backend refactored into modules: models, database, storage, auth, transcription, projects, server
+- **Frozen Caption Document schema** (words/segments/style/word_count/duration) — source of truth for preview + future render
+- Auth: JWT email/password (register/login/me/logout/refresh/forgot/reset, bcrypt, brute-force lockout keyed on X-Forwarded-For) + Emergent Google OAuth (session exchange); unified resolver accepts cookie or Bearer
+- Projects: create/list/get/delete with ownership isolation; caption persistence (transcribe writes caption_document; PUT /caption saves edits)
+- Media ingestion: upload to Emergent object storage, DB-backed media records, streaming endpoint with HTTP Range (206)
+- jobs + usage_events collections (M-OPS/M-BILL groundwork; transcription creates a job + usage event)
+- Frontend: AuthContext, Login/Signup, Google login, ProtectedRoute, Dashboard (projects grid + new-project upload), Studio refactored to project-backed (reuses existing VideoStage/CaptionEditor unchanged)
+- Verified: testing agent frontend journey 100%; backend 13/13 after brute-force lockout fix
+
 ## Backlog
-- P1: Word-level nudging/editing of captions
-- P1: Persist projects (needs storage + DB)
-- P2: SRT/VTT export
-- P2: Custom entity categories / color themes
-- P2: Multi-language toggle (Devanagari vs Roman)
+- v2: Multi-language STT + productionized semantic layer + async job status
+- P2: SRT/VTT export, custom entity categories, Devanagari/Roman toggle
+- Cursor/infra: audio extraction (ffmpeg) to support >25MB clips; range streaming from storage without loading full bytes
 
 ## Next Tasks
 - Gather user feedback on transcription accuracy for real Hinglish clips

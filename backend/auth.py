@@ -151,6 +151,15 @@ async def _clear_failures(identifier: str):
     await db.login_attempts.delete_one({"identifier": identifier})
 
 
+def _client_ip(request: Request) -> str:
+    # Behind the k8s ingress, request.client.host is the proxy peer IP (varies per request).
+    # The real client IP is the left-most entry of X-Forwarded-For.
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 # ---------- endpoints ----------
 @router.post("/register")
 async def register(body: RegisterRequest, response: Response):
@@ -173,7 +182,7 @@ async def register(body: RegisterRequest, response: Response):
 @router.post("/login")
 async def login(body: LoginRequest, request: Request, response: Response):
     email = body.email.lower().strip()
-    identifier = f"{request.client.host if request.client else 'x'}:{email}"
+    identifier = f"{_client_ip(request)}:{email}"
     await _check_lockout(identifier)
     user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Plus, Film, Trash2, Loader2, Clock, Type, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
 import { VideoUploader } from "@/components/VideoUploader";
@@ -112,6 +112,9 @@ export default function Dashboard() {
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle style={{ fontFamily: "Outfit, sans-serif" }}>New caption project</DialogTitle>
+                <DialogDescription>
+                  Upload a video or audio clip (up to 25MB). We'll transcribe it and highlight names, places and actions.
+                </DialogDescription>
               </DialogHeader>
               <div className="h-72 mt-2 relative">
                 {creating && (
