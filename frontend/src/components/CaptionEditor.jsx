@@ -1,19 +1,53 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, WandSparkles, FileText } from "lucide-react";
+import { Sparkles, Loader2, WandSparkles, FileText, Merge, CheckCircle2, AlertCircle, Clock3, Mic, MicOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Legend } from "@/components/Legend";
 import { SemanticWord } from "@/components/SemanticWord";
 
+/** Small indicator showing save status */
+function SaveIndicator({ status }) {
+  if (!status || status === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+        <CheckCircle2 className="h-3 w-3" /> Saved
+      </span>
+    );
+  }
+  if (status === "saving") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+        <Clock3 className="h-3 w-3 animate-pulse" /> Saving…
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-red-500">
+      <AlertCircle className="h-3 w-3" /> Save failed
+    </span>
+  );
+}
+
 export const CaptionEditor = ({
   lines,
+  captionDoc,
   loading,
   hasVideo,
   onTranscribe,
   activeLineIndex,
   activeWord,
   onSeek,
+  saveStatus,
+  onWordUpdate,
+  onWordDelete,
+  onSegmentSplit,
+  onSegmentMerge,
+  denoise,
+  onDenoiseChange,
 }) => {
   const activeRef = useRef(null);
+  const hasCaptions = lines && lines.length > 0;
+  const isEditable = Boolean(captionDoc && onWordUpdate);
 
   useEffect(() => {
     if (activeRef.current) {
@@ -21,24 +55,36 @@ export const CaptionEditor = ({
     }
   }, [activeLineIndex]);
 
-  const hasCaptions = lines && lines.length > 0;
-
   return (
     <div
       data-testid="caption-editor"
-      className="lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
+      className="flex flex-col h-full"
     >
-      <div className="flex items-center gap-2 mb-4">
-        <Sparkles className="h-4 w-4 text-[#FA5D29]" />
-        <h2
-          className="text-lg font-semibold tracking-tight text-gray-900"
-          style={{ fontFamily: "Outfit, sans-serif" }}
-        >
-          Transcript
-        </h2>
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[#FA5D29]" />
+          <h2
+            className="text-lg font-semibold tracking-tight text-gray-900"
+            style={{ fontFamily: "Outfit, sans-serif" }}
+          >
+            Transcript
+          </h2>
+        </div>
+
+        {/* Save status — only show when captions exist */}
+        {hasCaptions && isEditable && (
+          <SaveIndicator status={saveStatus} />
+        )}
       </div>
 
       <Legend />
+
+      {isEditable && hasCaptions && (
+        <p className="text-xs text-gray-400 mt-2 mb-0">
+          Double-click any word to edit text, timing, or tag.
+        </p>
+      )}
 
       <div
         data-testid="caption-list"
@@ -66,52 +112,117 @@ export const CaptionEditor = ({
 
         {hasCaptions &&
           !loading &&
-          lines.map((line, li) => (
-            <motion.p
-              key={li}
-              ref={li === activeLineIndex ? activeRef : null}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: li * 0.04 }}
-              data-testid={`caption-line-${li}`}
-              onClick={() => onSeek?.(line.start)}
-              className={`cursor-pointer rounded-lg px-2 py-1.5 -mx-2 transition-colors ${
-                li === activeLineIndex ? "bg-orange-50" : "hover:bg-gray-50"
-              }`}
-            >
-              {line.words.map((w, wi) => (
-                <span key={wi} className="mr-1.5">
-                  <SemanticWord
-                    text={w.text}
-                    entityType={w.entity_type}
-                    active={w === activeWord}
-                  />
-                </span>
-              ))}
-            </motion.p>
-          ))}
+          lines.map((line, li) => {
+            const isLast = li === lines.length - 1;
+            return (
+              <motion.div
+                key={line.id || li}
+                ref={li === activeLineIndex ? activeRef : null}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: li * 0.04 }}
+                className={`group relative rounded-lg px-2 py-1.5 -mx-2 transition-colors ${
+                  li === activeLineIndex ? "bg-orange-50" : "hover:bg-gray-50"
+                }`}
+              >
+                {/* Line text — click to seek */}
+                <p
+                  data-testid={`caption-line-${li}`}
+                  onClick={() => onSeek?.(line.start)}
+                  className="cursor-pointer"
+                >
+                  {line.words.map((w, wi) => (
+                    <span key={w.id || wi} className="mr-1.5">
+                      <SemanticWord
+                        text={w.text}
+                        entityType={w.entity_type}
+                        active={w === activeWord}
+                        /* edit props */
+                        wordId={isEditable ? w.id : undefined}
+                        segmentId={isEditable ? line.id : undefined}
+                        start={w.start}
+                        end={w.end}
+                        isFirstInSegment={wi === 0}
+                        onWordUpdate={onWordUpdate}
+                        onWordDelete={onWordDelete}
+                        onSegmentSplit={onSegmentSplit}
+                      />
+                    </span>
+                  ))}
+                </p>
+
+                {/* Merge with next line button — shown on hover, not on last line */}
+                {isEditable && !isLast && onSegmentMerge && (
+                  <button
+                    type="button"
+                    title="Merge with next line"
+                    data-testid={`merge-segment-${line.id || li}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSegmentMerge(line.id);
+                    }}
+                    className="absolute -bottom-2.5 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity
+                               inline-flex items-center gap-1 text-xs font-medium text-gray-500
+                               bg-white border border-gray-200 hover:border-gray-300 hover:text-gray-700
+                               rounded-full px-2 py-0.5 shadow-sm"
+                  >
+                    <Merge className="h-3 w-3" />
+                    Merge ↓
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
       </div>
 
       {hasVideo && (
-        <button
-          type="button"
-          data-testid="transcribe-btn"
-          disabled={loading}
-          onClick={onTranscribe}
-          className="w-full bg-[#FA5D29] text-white py-4 rounded-xl font-medium shadow-sm hover:bg-[#E04C1E] transition-all disabled:opacity-70 mt-4 flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Generating magic…
-            </>
-          ) : (
-            <>
-              <WandSparkles className="h-5 w-5" />
-              {hasCaptions ? "Re-generate captions" : "Generate captions"}
-            </>
-          )}
-        </button>
+        <div className="mt-4 space-y-2">
+          {/* Audio Enhancement Toggle */}
+          <div
+            className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 cursor-pointer"
+            onClick={() => onDenoiseChange?.(!denoise)}
+          >
+            <div className="flex items-center gap-2">
+              {denoise
+                ? <Mic className="h-4 w-4 text-[#FA5D29]" />
+                : <MicOff className="h-4 w-4 text-gray-400" />}
+              <div>
+                <p className="text-sm font-medium text-gray-700">Clean Audio</p>
+                <p className="text-xs text-gray-400">
+                  {denoise ? "AI noise reduction enabled" : "Raw audio — faster"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={!!denoise}
+              onCheckedChange={onDenoiseChange}
+              onClick={(e) => e.stopPropagation()}
+              data-testid="denoise-toggle"
+              className="data-[state=checked]:bg-[#FA5D29]"
+            />
+          </div>
+
+          {/* Generate/Re-generate Button */}
+          <button
+            type="button"
+            data-testid="transcribe-btn"
+            disabled={loading}
+            onClick={onTranscribe}
+            className="w-full bg-[#FA5D29] text-white py-4 rounded-xl font-medium shadow-sm hover:bg-[#E04C1E] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                {denoise ? "Cleaning audio…" : "Generating magic…"}
+              </>
+            ) : (
+              <>
+                <WandSparkles className="h-5 w-5" />
+                {hasCaptions ? "Re-generate captions" : "Generate captions"}
+              </>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );

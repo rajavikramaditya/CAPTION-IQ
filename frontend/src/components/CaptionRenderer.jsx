@@ -11,8 +11,38 @@ function useContainerWidth(ref) {
   return w;
 }
 
-// Professional word-by-word caption renderer. Layout-stable (uniform padding so the
-// active word never shifts siblings), animated with targeted CSS transitions.
+// AI Emoji Dictionary Mapping
+const EMOJI_MAP = {
+  money: "💰", paise: "💰", cash: "💰", dollar: "💰", earning: "💰", profit: "💰",
+  video: "📹", camera: "📷", shoot: "📷", shooted: "📷",
+  car: "🚗", gaadi: "🚗", bike: "🏍️", cycle: "🚲",
+  time: "⏰", aaj: "⏰", kal: "⏰", clock: "⏰", watch: "⏰",
+  love: "❤️", dil: "❤️", pyaar: "❤️",
+  fire: "🔥", hot: "🔥", aag: "🔥", burn: "🔥",
+  idea: "💡", soch: "💡", dimaag: "💡", smart: "💡",
+  target: "🎯", goal: "🎯", success: "🎯", jeet: "🎯",
+  run: "🏃", bhaag: "🏃", walk: "🚶",
+  music: "🎵", song: "🎵", gaana: "🎵",
+  phone: "📱", mobile: "📱", call: "📱",
+  lock: "🔒", key: "🔑",
+  star: "⭐", diamond: "💎", gold: "🥇",
+  entity_person: "👑",
+  entity_location: "📍",
+  entity_action: "⚡",
+};
+
+function getWordEmoji(text, entityType) {
+  if (!text) return null;
+  const clean = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (EMOJI_MAP[clean]) return EMOJI_MAP[clean];
+  if (entityType) {
+    return EMOJI_MAP[`entity_${entityType}`] || null;
+  }
+  return null;
+}
+
+// Professional word-by-word caption renderer. Layout-stable, animated,
+// with auto emojis and linguistic highlighting features.
 export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
   const ref = useRef(null);
   const width = useContainerWidth(ref);
@@ -56,29 +86,102 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
     paintOrder: "stroke fill",
   };
 
-  const wordStyle = (active) => ({
-    display: "inline-block",
-    marginRight: `${style.wordSpacing}em`,
-    padding: `${fontSize * style.wordPad.y}px ${fontSize * style.wordPad.x}px`,
-    borderRadius: `${fontSize * (style.active.bgRadius || 0.2)}px`,
-    transform: active ? `scale(${style.active.scale})` : "scale(1)",
-    color: active ? style.active.color : style.color,
-    backgroundColor: active && style.active.bg ? style.active.bg : "transparent",
-    fontWeight: active && style.active.weight ? style.active.weight : style.weight,
-    transition: "transform 130ms ease, color 130ms ease, background-color 130ms ease",
-    willChange: "transform",
-  });
+  const getWordColor = (w, active) => {
+    if (active) {
+      if (style.semanticHighlight && w.entity_type) {
+        if (w.entity_type === "person") return "#FACC15";   // Bright Yellow
+        if (w.entity_type === "location") return "#60A5FA"; // Bright Blue
+        if (w.entity_type === "action") return "#4ADE80";   // Bright Green
+      }
+      return style.active.color;
+    }
+    return style.color;
+  };
+
+  const wordStyle = (w, active) => {
+    const isUnderlined = !active && style.semanticHighlight && w.entity_type;
+    const borderBottomColor =
+      w.entity_type === "person" ? "rgba(250,204,21,0.6)" :
+      w.entity_type === "location" ? "rgba(96,165,250,0.6)" :
+      w.entity_type === "action" ? "rgba(74,222,128,0.6)" : "transparent";
+
+    return {
+      display: "inline-block",
+      position: "relative",
+      marginRight: `${style.wordSpacing}em`,
+      padding: `${fontSize * style.wordPad.y}px ${fontSize * style.wordPad.x}px`,
+      borderRadius: `${fontSize * (style.active.bgRadius || 0.2)}px`,
+      color: getWordColor(w, active),
+      backgroundColor: active && style.active.bg ? style.active.bg : "transparent",
+      fontWeight: active && style.active.weight ? style.active.weight : style.weight,
+      borderBottom: isUnderlined ? `2px dotted ${borderBottomColor}` : "none",
+      willChange: "transform",
+      animation: active && style.animation && style.animation !== "none"
+        ? `caption-${style.animation} 180ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`
+        : "none",
+      transform: active && (!style.animation || style.animation === "none")
+        ? `scale(${style.active.scale})`
+        : "scale(1)",
+      transition: (!active || !style.animation || style.animation === "none")
+        ? "transform 130ms ease, color 130ms ease, background-color 130ms ease"
+        : "color 130ms ease, background-color 130ms ease",
+    };
+  };
 
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none" data-testid="caption-renderer">
+      {/* Dynamically injected CSS animations to prevent global CSS pollution */}
+      <style>{`
+        @keyframes caption-pop {
+          0% { transform: scale(0.9); }
+          100% { transform: scale(${style.active.scale || 1.08}); }
+        }
+        @keyframes caption-bounce {
+          0%, 100% { transform: translateY(0) scale(${style.active.scale || 1.08}); }
+          50% { transform: translateY(-6px) scale(${style.active.scale * 1.04 || 1.12}); }
+        }
+        @keyframes caption-slide {
+          0% { transform: translateY(8px); opacity: 0.65; }
+          100% { transform: translateY(0) scale(${style.active.scale || 1.08}); opacity: 1; }
+        }
+        @keyframes caption-glow {
+          0%, 100% { transform: scale(${style.active.scale || 1.08}); text-shadow: 0 0 4px rgba(255,255,255,0.4); }
+          50% { transform: scale(${style.active.scale || 1.08}); text-shadow: 0 0 14px ${style.active.color}; }
+        }
+        @keyframes emoji-pop {
+          0% { transform: translate(-50%, 6px) scale(0); opacity: 0; }
+          100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+        }
+      `}</style>
+
       <div style={wrap}>
         <div style={boxStyle}>
           <p style={textStyle}>
-            {words.map((w, i) => (
-              <span key={i} style={wordStyle(w.active)} data-active={w.active ? "true" : "false"}>
-                {style.uppercase ? (w.text || "").toUpperCase() : w.text}
-              </span>
-            ))}
+            {words.map((w, i) => {
+              const emoji = style.showEmojis ? getWordEmoji(w.text, w.entity_type) : null;
+              return (
+                <span key={i} style={wordStyle(w, w.active)} data-active={w.active ? "true" : "false"}>
+                  {/* Floating emoji above the active word */}
+                  {w.active && emoji && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        bottom: "95%",
+                        left: "50%",
+                        fontSize: "0.85em",
+                        transform: "translate(-50%, 0)",
+                        animation: "emoji-pop 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards",
+                        pointerEvents: "none",
+                        zIndex: 20,
+                      }}
+                    >
+                      {emoji}
+                    </span>
+                  )}
+                  {style.uppercase ? (w.text || "").toUpperCase() : w.text}
+                </span>
+              );
+            })}
           </p>
         </div>
       </div>
