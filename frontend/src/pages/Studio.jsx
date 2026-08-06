@@ -1,15 +1,22 @@
-import { useMemo, useRef, useState } from "react";
-import axios from "axios";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Header } from "@/components/Header";
-import { VideoUploader } from "@/components/VideoUploader";
+import { AppHeader } from "@/components/AppHeader";
 import { VideoStage } from "@/components/VideoStage";
 import { CaptionEditor } from "@/components/CaptionEditor";
-import { SAMPLE_RESULT, SAMPLE_VIDEO_URL } from "@/lib/mockData";
+import { api, API, formatApiErrorDetail } from "@/lib/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// Transform the frozen CaptionDocument into the shape the preview components expect.
+function docToResult(doc) {
+  if (!doc || !doc.words?.length) return null;
+  const words = doc.words.map((w) => ({
+    text: w.text, start: w.start, end: w.end, entity_type: w.entity_type || null,
+  }));
+  const segments = (doc.segments || []).map((s) => ({ start: s.start, end: s.end, text: s.text }));
+  return { words, segments };
+}
 
-// Group flat words into caption lines using segment boundaries.
 function buildLines(result) {
   if (!result || !result.words?.length) return [];
   const { words, segments } = result;
@@ -26,84 +33,68 @@ function buildLines(result) {
 }
 
 export default function Studio() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
   const videoRef = useRef(null);
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [file, setFile] = useState(null);
+
+  const [project, setProject] = useState(null);
+  const [pageLoading, setPageLoading] = useState(true);
   const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get(`/projects/${projectId}`);
+        setProject(data);
+        setResult(docToResult(data.caption_document));
+      } catch (e) {
+        toast.error("Project not found");
+        navigate("/dashboard", { replace: true });
+      } finally {
+        setPageLoading(false);
+      }
+    })();
+  }, [projectId, navigate]);
+
+  const videoUrl = useMemo(
+    () => (project?.media_id ? `${API}/projects/${projectId}/media` : null),
+    [project, projectId]
+  );
 
   const lines = useMemo(() => buildLines(result), [result]);
 
   const activeWord = useMemo(() => {
     if (!result?.words) return null;
-    return (
-      result.words.find((w) => currentTime >= w.start && currentTime < w.end) || null
-    );
+    return result.words.find((w) => currentTime >= w.start && currentTime < w.end) || null;
   }, [result, currentTime]);
 
   const activeLineIndex = useMemo(() => {
     if (!lines.length) return -1;
-    const idx = lines.findIndex((l) => currentTime >= l.start && currentTime < l.end);
-    return idx;
+    return lines.findIndex((l) => currentTime >= l.start && currentTime < l.end);
   }, [lines, currentTime]);
 
   const overlayWords = useMemo(() => {
     if (activeLineIndex < 0) return [];
-    return lines[activeLineIndex].words.map((w) => ({
-      ...w,
-      active: w === activeWord,
-    }));
+    return lines[activeLineIndex].words.map((w) => ({ ...w, active: w === activeWord }));
   }, [lines, activeLineIndex, activeWord]);
 
-  const handleFile = (f) => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    setFile(f);
-    setResult(null);
-    setCurrentTime(0);
-    setVideoUrl(URL.createObjectURL(f));
-  };
-
-  const handleSample = () => {
-    setFile(null);
-    setVideoUrl(SAMPLE_VIDEO_URL);
-    setResult(SAMPLE_RESULT);
-    setCurrentTime(0);
-    toast.success("Demo loaded — press play to see live semantic captions");
-  };
-
-  const handleChangeVideo = () => {
-    if (videoUrl && file) URL.revokeObjectURL(videoUrl);
-    setVideoUrl(null);
-    setFile(null);
-    setResult(null);
-    setCurrentTime(0);
-  };
-
   const handleTranscribe = async () => {
-    if (!file) {
-      toast.info("Upload a video first, or load the demo to explore.");
-      return;
-    }
-    setLoading(true);
+    setTranscribing(true);
     setResult(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const { data } = await axios.post(`${API}/transcribe`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post(`/projects/${projectId}/transcribe`);
       if (!data.words?.length) {
         toast.error("No speech detected in this clip.");
       } else {
-        setResult(data);
+        setResult(docToResult(data));
         toast.success("Captions generated with semantic highlighting!");
       }
     } catch (e) {
-      const detail = e.response?.data?.detail || "Transcription failed. Try a shorter clip.";
-      toast.error(detail);
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Transcription failed");
     } finally {
-      setLoading(false);
+      setTranscribing(false);
     }
   };
 
@@ -114,28 +105,32 @@ export default function Studio() {
     }
   };
 
+  if (pageLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-6 w-6 animate-spin text-[#FA5D29]" />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-full flex flex-col bg-gray-50 overflow-hidden">
-      <Header />
+      <AppHeader />
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-6 lg:p-8 flex-1 min-h-0">
         <section className="lg:col-span-7 flex flex-col h-full bg-black rounded-2xl overflow-hidden relative shadow-lg group min-h-[320px]">
-          {videoUrl ? (
-            <VideoStage
-              videoUrl={videoUrl}
-              videoRef={videoRef}
-              overlayWords={overlayWords}
-              onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
-              onChangeVideo={handleChangeVideo}
-            />
-          ) : (
-            <VideoUploader onFile={handleFile} onSample={handleSample} />
-          )}
+          <VideoStage
+            videoUrl={videoUrl}
+            videoRef={videoRef}
+            overlayWords={overlayWords}
+            onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+            onChangeVideo={() => navigate("/dashboard")}
+          />
         </section>
 
         <CaptionEditor
           lines={lines}
-          loading={loading}
-          hasVideo={Boolean(file)}
+          loading={transcribing}
+          hasVideo={Boolean(project?.media_id)}
           onTranscribe={handleTranscribe}
           activeLineIndex={activeLineIndex}
           activeWord={activeWord}

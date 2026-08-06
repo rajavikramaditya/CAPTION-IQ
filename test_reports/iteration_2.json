@@ -1,0 +1,49 @@
+{
+  "summary": "CaptionIQ v1 milestone tested end-to-end. Backend 12/13 pytest cases pass (auth register/login/me/logout/refresh, Google OAuth session simulation via mongo, projects CRUD + ownership isolation, media upload/stream with HTTP Range 206, REAL Whisper + gpt-5.4 entity tagging, caption save). Frontend full journey (signup -> dashboard -> new-project dialog -> upload speech.mp3 -> studio -> transcribe -> logout -> protected route redirect -> login re-lists project) all pass. Primary AI feature (transcription+entity tagging) verified rendering 12 caption-word elements with 2 person + 2 location + 2 action entities. ONE CRITICAL BUG: brute-force lockout does not fire behind the k8s ingress because request.client.host is the ingress proxy peer IP which varies across requests, splitting the 5-attempt counter across identifiers.",
+  "ai_feature_verdicts": [
+    "Whisper transcription (POST /api/projects/{id}/transcribe) - pass - evidence: uploaded /app/test_fixtures/speech.mp3 (37 KB) to a real project, backend returned 200 with 12 words carrying start/end timestamps; caption_document persisted (GET /api/projects/{id} returned status=ready + 12 word_count); job row status=done + usage_event row created in mongo - skill: ai-testing-audio",
+    "gpt-5.4 entity tagging (LlmChat) - pass - evidence: entities tagged Rahul/Priya=person (yellow), Mumbai/Delhi=location (blue), went/shot=action (green); all 3 entity classes populated; visible in browser screenshot - skill: ai-testing-llm",
+    "Emergent Object Storage (put/get + Range) - pass - evidence: upload_media returned {media_id, size>1000}; full GET returned Accept-Ranges: bytes + non-empty body; Range: bytes=0-999 returned 206 with Content-Range 'bytes 0-999/N' and exactly 1000 bytes - skill: ai-testing-core",
+    "Emergent Google OAuth session flow - pass (simulated per playbook) - evidence: injected users doc + user_sessions doc into mongo test_database, then GET /api/auth/me with Authorization: Bearer <session_token> returned 200 with auth_provider=google and correct email - skill: ai-testing-core"
+  ],
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/auth/login", "issue": "Brute-force lockout does NOT activate at 5 wrong attempts through the preview URL. Root cause: _check_lockout uses identifier = f\"{request.client.host}:{email}\", but request.client.host is the direct TCP peer (the k8s ingress-proxy IP), which varies request-to-request. Verified in mongo: after 5 wrong logins the login_attempts collection shows only count=4 on one identifier '10.219.1.32:...' and the 6th correct login succeeded with 200 instead of 429. Fix: use X-Forwarded-For (right-most before trusted hops) as the client IP, or key the lockout on email alone (with a wider window) so it can't be split across ingress pods.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "auth cookies", "issue": "Cookies are Secure+SameSite=None. This is required for the studio to work over HTTPS, but any non-HTTPS testing path will silently drop cookies -- rely on Bearer tokens from the response body when curling."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "New Project dialog", "issues": ["React warning: 'Missing Description or aria-describedby={undefined} for DialogContent' — add DialogDescription for a11y."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_captioniq.py",
+    "/app/test_reports/pytest/captioniq_results.xml"
+  ],
+  "action_items": [
+    "Fix brute-force lockout to work behind k8s ingress: derive the real client IP from X-Forwarded-For (or just rate-limit on email) so 5 wrong logins from the same real client actually flip _check_lockout to 429.",
+    "Add DialogDescription (or aria-describedby) to the New Project dialog to remove the a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "backend/auth.py lockout identifier is IP+email, but request.client.host behind an ingress is the ingress-proxy IP and can change per request (multi-replica ingress or connection pooling). This breaks the primary anti-brute-force control. Confirmed with a live 5-attempt test: only 4 of 5 counted on one identifier and 6th correct login went through with 200.",
+    "backend/projects.py list_projects hardcodes .to_list(1000). Fine for MVP but paginate before scale.",
+    "backend/storage.py init_storage stores the session key in a module global — for multi-worker uvicorn each worker will lazy-init separately (fine, just noting).",
+    "backend/transcription.py entity tagger silently swallows LLM errors and returns empty tag sets. Users would just see uncolored words. Consider logging at ERROR and surfacing a status somewhere.",
+    "frontend Studio.jsx sets <video src=\"$API/projects/{id}/media\"> without credentials — because the browser sends the httpOnly cookie automatically over the same origin/CORS-with-credentials this works, but if the video element ever needs Bearer-only auth it won't; today it depends on cookies being present."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_captioniq.py"
+  ],
+  "success_rate": {"backend": "92%", "frontend": "100%"},
+  "test_credentials": "Used per-run random test_*@example.com accounts; seeded admin admin@captioniq.app / CaptionIQ@2026 and creator1@test.com / secret123 also verified to exist.",
+  "seed_data_creation": "None new — reused /app/test_fixtures/speech.mp3 (gTTS: 'Rahul went to Mumbai and shot a video with Priya in Delhi').",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "pytest suite lives at /app/backend/tests/test_captioniq.py — needs REACT_APP_BACKEND_URL + MONGO_URL + DB_NAME env vars, runs the full stack including a live Whisper+gpt-5.4 call (~8s wall time). test_five_wrong_logins_lockout will keep failing until the ingress-IP problem in auth.py is fixed. Fixture /app/test_fixtures/speech.mp3 is small (37 KB) and reliably transcribes to the same text.",
+  "rca of the issue": "Brute-force lockout counter is split across multiple identifiers because the app derives the client IP via `request.client.host`, which under k8s ingress equals the ingress-pod peer IP. Since a single external client can be routed to different ingress pods (or the peer IP can change on connection reuse), 5 wrong logins from the same user do not all land on the same identifier row. Mongo evidence: login_attempts had a single row with count=4 and no locked_until set. Reproduction: hit POST /api/auth/login 5 times with a wrong password against the preview URL for the same email — expected 429 on the 5th or 6th call, actual is 401/200. Fix options: (a) read X-Forwarded-For (starlette exposes it in request.headers) and use the first value or the last public IP, (b) drop IP from the identifier and lock the account by email only for a shorter window, or (c) use a proxy-aware middleware like starlette's ProxyHeadersMiddleware / uvicorn --proxy-headers with `--forwarded-allow-ips='*'`."
+}

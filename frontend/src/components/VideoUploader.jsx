@@ -41,18 +41,20 @@ export const VideoUploader = ({ onFile, onSample }) => {
           <Film className="h-4 w-4" />
           Choose file
         </span>
-        <button
-          type="button"
-          data-testid="load-sample-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSample();
-          }}
-          className="inline-flex items-center gap-2 border border-white/20 hover:bg-white/10 transition-colors text-white text-sm font-medium px-5 py-2.5 rounded-xl"
-        >
-          <Play className="h-4 w-4" />
-          Try demo
-        </button>
+        {onSample && (
+          <button
+            type="button"
+            data-testid="load-sample-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSample();
+            }}
+            className="inline-flex items-center gap-2 border border-white/20 hover:bg-white/10 transition-colors text-white text-sm font-medium px-5 py-2.5 rounded-xl"
+          >
+            <Play className="h-4 w-4" />
+            Try demo
+          </button>
+        )}
       </div>
     </div>
   );
