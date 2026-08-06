@@ -71,23 +71,26 @@ export default function Studio() {
 
   // ---- Caption Template Engine state (client-side; persisted per project) ----
   const STORAGE_KEY = `captioniq:style:${projectId}`;
-  const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
-  useEffect(() => {
+  const readSaved = () => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (saved) {
-        setTemplateId(saved.templateId || DEFAULT_TEMPLATE_ID);
-        setSettings({ ...DEFAULT_SETTINGS, ...(saved.settings || {}) });
-      } else {
-        setTemplateId(DEFAULT_TEMPLATE_ID);
-        setSettings(DEFAULT_SETTINGS);
+        return {
+          templateId: saved.templateId || DEFAULT_TEMPLATE_ID,
+          settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) },
+        };
       }
     } catch {
       /* ignore */
     }
-  }, [STORAGE_KEY]);
+    return { templateId: DEFAULT_TEMPLATE_ID, settings: DEFAULT_SETTINGS };
+  };
+
+  // Lazy init so the saved value loads synchronously BEFORE any save effect runs
+  // (prevents a StrictMode double-mount race from clobbering the stored template).
+  const [templateId, setTemplateId] = useState(() => readSaved().templateId);
+  const [settings, setSettings] = useState(() => readSaved().settings);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ templateId, settings }));
