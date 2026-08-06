@@ -33,6 +33,15 @@ Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: uplo
 - Frontend: AuthContext, Login/Signup, Google login, ProtectedRoute, Dashboard (projects grid + new-project upload), Studio refactored to project-backed (reuses existing VideoStage/CaptionEditor unchanged)
 - Verified: testing agent frontend journey 100%; backend 13/13 after brute-force lockout fix
 
+### v3 — Caption Template & Rendering Engine (frontend-only) ✅
+- Professional word-by-word `CaptionRenderer` (replaces old simple overlay), memoized, layout-stable, CSS-transition active word
+- 11 templates (`lib/templates.js`): Minimal, Modern, Podcast, News, Finance, Cinematic, Shorts, Gaming, Education, Bold Impact, Hype — each with font/weight/stroke/shadow/box/rounded/word+line spacing/uppercase/position/safe-margin + active {scale,color,bg}
+- `TemplateBar`: instant template switch + position/size/uppercase/box controls (no re-transcription; transcript unchanged)
+- Overlay uses short ~4-word display chunks (`buildChunks`) independent of Whisper segments, so captions never cover the video
+- Style persisted per project in localStorage (lazy useState init, StrictMode-safe)
+- No backend/API/auth/storage changes
+- Verified: testing agent 100% (iteration_4) — fixed reported bugs (whole-transcript overlay; template visuals) + persistence race
+
 ## Backlog
 - v2: Multi-language STT + productionized semantic layer + async job status
 - P2: SRT/VTT export, custom entity categories, Devanagari/Roman toggle
