@@ -34,6 +34,30 @@ function buildLines(result) {
     .filter((l) => l.words.length > 0);
 }
 
+// Break the transcript into short, punchy display chunks (~4 words) for the video
+// overlay — independent of Whisper's segment lengths, so captions never cover the video.
+function buildChunks(words, { maxWords = 4, maxGap = 0.7, maxDur = 2.4 } = {}) {
+  if (!words?.length) return [];
+  const chunks = [];
+  let cur = [];
+  for (const w of words) {
+    if (cur.length === 0) {
+      cur = [w];
+      continue;
+    }
+    const start = cur[0].start;
+    const gap = w.start - cur[cur.length - 1].end;
+    if (cur.length >= maxWords || gap > maxGap || w.end - start > maxDur) {
+      chunks.push(cur);
+      cur = [w];
+    } else {
+      cur.push(w);
+    }
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks.map((ws) => ({ start: ws[0].start, end: ws[ws.length - 1].end, words: ws }));
+}
+
 export default function Studio() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -96,6 +120,7 @@ export default function Studio() {
   );
 
   const lines = useMemo(() => buildLines(result), [result]);
+  const chunks = useMemo(() => buildChunks(result?.words), [result]);
 
   const activeWord = useMemo(() => {
     if (!result?.words) return null;
@@ -107,17 +132,25 @@ export default function Studio() {
     return lines.findIndex((l) => currentTime >= l.start && currentTime < l.end);
   }, [lines, currentTime]);
 
-  const overlayWords = useMemo(() => {
-    if (activeLineIndex < 0) return [];
-    return lines[activeLineIndex].words.map((w) => ({ ...w, active: w === activeWord }));
-  }, [lines, activeLineIndex, activeWord]);
+  const activeChunkIndex = useMemo(() => {
+    if (!chunks.length) return -1;
+    return chunks.findIndex((c) => currentTime >= c.start && currentTime < c.end);
+  }, [chunks, currentTime]);
 
-  // Always show a caption line for styling (first line when nothing is active).
+  const overlayWords = useMemo(() => {
+    if (activeChunkIndex < 0) return [];
+    return chunks[activeChunkIndex].words.map((w) => ({ ...w, active: w === activeWord }));
+  }, [chunks, activeChunkIndex, activeWord]);
+
+  // Show a styled preview chunk (first word active) when paused, so switching
+  // templates immediately reveals colour / background / active-word styling.
   const previewWords = useMemo(() => {
     if (overlayWords.length) return overlayWords;
-    if (lines.length) return lines[0].words.map((w) => ({ ...w, active: false }));
+    if (currentTime < 0.25 && chunks.length) {
+      return chunks[0].words.map((w, i) => ({ ...w, active: i === 0 }));
+    }
     return [];
-  }, [overlayWords, lines]);
+  }, [overlayWords, chunks, currentTime]);
 
   const handleTranscribe = async () => {
     setTranscribing(true);
