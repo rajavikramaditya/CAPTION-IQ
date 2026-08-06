@@ -1,0 +1,116 @@
+{
+  "theme": "light",
+  "typography": {
+    "headings": "Outfit, sans-serif",
+    "body": "Inter, sans-serif",
+    "rules": [
+      "Headings must use tight tracking (tracking-tight).",
+      "H1 maximum is text-5xl.",
+      "Use font-semibold for semantic tagged words.",
+      "DO NOT use generic fonts like Arial or Roboto."
+    ]
+  },
+  "colors": {
+    "background": "#F9FAFB",
+    "surface": "#FFFFFF",
+    "primary": "#FA5D29",
+    "primary_hover": "#E04C1E",
+    "text_primary": "#111827",
+    "text_secondary": "#4B5563",
+    "semantics": {
+      "person": {
+        "bg": "bg-yellow-100",
+        "text": "text-yellow-800",
+        "border": "border-yellow-200"
+      },
+      "location": {
+        "bg": "bg-blue-100",
+        "text": "text-blue-800",
+        "border": "border-blue-200"
+      },
+      "action": {
+        "bg": "bg-green-100",
+        "text": "text-green-800",
+        "border": "border-green-200"
+      },
+      "active_word": {
+        "bg": "bg-gray-800",
+        "text": "text-white"
+      }
+    }
+  },
+  "visual_enhancers": {
+    "shadows": "shadow-sm to shadow-md on cards, never heavy. Use 1px borders (border-gray-200) for structural definition.",
+    "borders": "rounded-2xl for major layout containers, rounded-lg for inner elements like buttons and semantic badges.",
+    "video_overlay": "Captions rendered OVER the video MUST have a heavy text-shadow or a backdrop-blur container so they are readable regardless of the video's underlying color. (e.g., drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] or a bg-black/40 wrapper).",
+    "semantic_badge": "px-1.5 py-0.5 rounded-md border"
+  },
+  "layouts": {
+    "app_structure": "h-screen w-full flex flex-col bg-gray-50 overflow-hidden",
+    "main_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-6 lg:p-8 h-[calc(100vh-80px)]",
+    "video_section": "lg:col-span-7 flex flex-col h-full bg-black rounded-2xl overflow-hidden relative shadow-lg group",
+    "editor_section": "lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
+  },
+  "components": {
+    "Header": {
+      "description": "Minimalist top bar with CaptionIQ logo (Outfit font, bold, dark gray with primary color accent) and no excessive nav links.",
+      "style": "h-20 bg-white/70 backdrop-blur-xl border-b border-gray-200 flex items-center px-6 lg:px-8 z-50 sticky top-0"
+    },
+    "VideoUploader": {
+      "description": "Large dashed border area with a clear icon and CTA. Appears in the video_section before any video is loaded.",
+      "style": "w-full h-full border-2 border-dashed border-gray-700 hover:border-primary bg-gray-900 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors text-white"
+    },
+    "TranscriptionTrigger": {
+      "description": "Button to start AI processing. Should show a loading spinner and 'Generating magic...' text when active.",
+      "style": "w-full bg-[#FA5D29] text-white py-4 rounded-xl font-medium shadow-sm hover:bg-[#E04C1E] transition-all disabled:opacity-70 mt-4 flex items-center justify-center gap-2"
+    },
+    "CaptionList": {
+      "description": "Scrollable area showing the generated transcript. Each word is wrapped in a span for individual tracking.",
+      "style": "flex-1 overflow-y-auto space-y-4 pr-2 mt-4 text-lg leading-relaxed text-gray-700 custom-scrollbar"
+    },
+    "Legend": {
+      "description": "Small row of badges explaining the semantic colors. Sits at the top of the editor section.",
+      "style": "flex flex-wrap gap-3 text-xs font-medium pb-4 border-b border-gray-100"
+    }
+  },
+  "motion": {
+    "rules": [
+      "Hover states on all interactive elements (buttons, dropzone).",
+      "Smooth auto-scroll in the CaptionList to keep the currently playing line in view.",
+      "Use framer-motion to slide-up/fade-in the transcription results."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "Ensure text-contrast for the semantic badges is readable.",
+      "Provide visually hidden labels for the video player controls if custom.",
+      "data-testid MUST be present on the main upload dropzone, transcribe button, and caption list items."
+    ]
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1528109966604-5a6a4a964e8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHx2aWRlbyUyMGVkaXRpbmclMjBjcmVhdG9yfGVufDB8fHx8MTc4NTk5NzkyM3ww&ixlib=rb-4.1.0&q=85",
+        "category": "empty_state",
+        "description": "Person using laptop, can be used as a subtle overlay or placeholder image for the initial state."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "IMPORTANT: Focus strictly on the MVP as described. Do NOT build authentication, payment walls, or backend databases. Videos are previewed in-browser using URL.createObjectURL().",
+    "MOCK THE AI: Use a mocked array for the transcription response to demonstrate the UI. The mock data must include word-level timestamps (start, end) and an 'entity_type' (person, location, action, or null).",
+    "SYNC LOGIC: Use an HTML5 <video> ref. On `timeupdate`, find the word whose timestamp matches `currentTime`. Highlight this active word in the CaptionList and display it in the video overlay.",
+    "SEMANTIC HIGHLIGHTING: In the transcript list, words with entity_type='person' get Yellow, 'location' gets Blue, and 'action' gets Green. Use the exact Tailwind classes defined in the colors.semantics section.",
+    "LIVE PREVIEW OVERLAY: The video element must have an absolute positioned div overlay on top of it. This overlay renders the current caption line in large, readable text, carrying over the same semantic coloring.",
+    "HINGLISH FOCUS: Ensure the sample mock data contains Hinglish (Roman Hindi) text (e.g., 'Rahul ne Mumbai mein shoot kiya', where Rahul=Person, Mumbai=Location, shoot=Action).",
+    "For the UI, do not use the shadcn `Card` everywhere if raw HTML/Tailwind achieves the fluid layout better, but use Shadcn for standard components like buttons or standard selects if needed."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Create depth through layered design elements with z-index hierarchy.",
+    "DO NOT center align the app container (.App { text-align: center; } is strictly banned).",
+    "Never use AI assistant Emoji characters (🤖🧠💭💡🔮🎯) for icons. Use standard lucide-react icons.",
+    "Always add `data-testid` attributes to interactive elements for testing.",
+    "Use `sonner` for toast notifications (located in /app/frontend/src/components/ui/sonner.js).",
+    "Ensure generous spacing: use p-6 or p-8 inside cards to avoid text collision with borders."
+  ]
+}
