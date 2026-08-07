@@ -1,7 +1,7 @@
 # CaptionIQ — Project State Document
 
-**Date:** August 6, 2026 (Updated post Phase D)
-**Status:** Active Development — Core Caption Features Complete
+**Date:** August 7, 2026 (Updated post Phase E & F)
+**Status:** Active Development — Core Captions & Video Export Ready
 **Workspace Path:** `c:\Projects\CAPTION IQ`
 **GitHub Repository:** [rajavikramaditya/CAPTION-IQ](https://github.com/rajavikramaditya/CAPTION-IQ)
 
@@ -15,14 +15,15 @@
 | **M-INGEST** | Media Ingestion | ✅ Completed | 25MB upload, object storage, HTTP 206 range streaming |
 | **M-STT** | Transcription | ✅ Completed | Whisper-1 + Roman script Hinglish prompts |
 | **M-SEM** | Semantic Intelligence | ✅ Completed | GPT-5.4 NER: Person 🟡 / Location 🔵 / Action 🟢 |
-| **M-TPL** | Template & Styling | ✅ Completed | **16 templates** + advanced effects resolution settings |
+| **M-TPL** | Template & Styling | ✅ Completed | **16 templates** + advanced effects settings |
 | **M-PREV** | Live Preview | ✅ Completed | Word-by-word renderer overlay with layout stability |
+| **M-ALIGN** | Aspect Ratio Bounding | ✅ Completed (Phase E) | **Layout-stable preview centering** (captions locked to video content area, no border bleed) |
 | **M-EDIT** | Caption Editor | ✅ Completed (Phase A) | Full interactive editor: timing edits, split/merge lines, autosave |
 | **M-EXPORT** | Subtitle Export | ✅ Completed (Phase B) | SRT/VTT/ASS/TXT download from Studio toolbar |
 | **M-AUD** | Audio Enhancement | ✅ Completed (Phase B) | Denoise switch preprocessing before Whisper |
 | **M-AI-CONTENT** | AI Content Magic | ✅ Completed (Phase C) | Social media content kit (Titles, Emojis, Hooks) tabs in Studio |
 | **M-ANIM** | Visual Caption Magic | ✅ Completed (Phase D) | **Dynamic animated captions overlay** (Pop, Bounce, Slide, Glow), auto-emojis, and semantic color highlighting |
-| **M-RENDER** | Burn-In Render | ⏳ Backlog | ffmpeg MP4 burn-in not yet built |
+| **M-RENDER** | Video Export Engine | ✅ Completed (Phase F) | **Server-side video burn-in rendering** (`ffmpeg` + `libass`) generating completed MP4 downloads with matching styles |
 | **M-BILL** | Monetization | ⏳ Backlog | Stripe not integrated |
 | **M-DASH** | Project Dashboard | ✅ Completed | Grid view, project CRUD, status badges |
 | **M-ONB** | Onboarding | ⏳ Backlog | Tutorial flow not built |
@@ -41,9 +42,10 @@
 | SRT/VTT Export | ✅ SRT | ✅ SRT+VTT+ASS+TXT | ✅ **We're AHEAD** |
 | Audio Denoise | ✅ Studio-grade | ✅ noisereduce toggle | ✅ Matched |
 | AI Social Content | ❌ None | ✅ 8 content types (Phase C) | ✅ **We're AHEAD** |
-| **Visual Animations (Overlay)**| ✅ pop, bounce, slide | ✅ Pop, Bounce, Slide, Glow | ✅ **We're AHEAD** |
-| **Auto Emojis in overlay** | ❌ None | ✅ Auto-emojis above words | ✅ **We're AHEAD** |
-| Burn-in MP4 | ✅ 1080p+4K | ⏳ Not built | 🔴 Gap |
+| Visual Animations (Overlay) | ✅ pop, bounce, slide | ✅ Pop, Bounce, Slide, Glow | ✅ **We're AHEAD** |
+| Auto Emojis in overlay | ❌ None | ✅ Auto-emojis above words | ✅ **We're AHEAD** |
+| **Pillarbox/Letterbox Bounds**| ❌ Borders bleed | ✅ Locked to active video rect | ✅ **We're AHEAD** |
+| **Video Export / Burn-in** | ✅ 1080p+4K | ✅ Dynamic styled burn-in (M-RENDER) | ✅ Matched |
 | Alpha-channel export | ✅ Yes | ⏳ Not built | 🔴 Gap |
 | Batch Processing | ✅ Yes | ⏳ Not built | 🟡 Future |
 | Multi-language | ✅ 20+ | 🟡 Hinglish/English | 🟡 Future |
@@ -51,19 +53,20 @@
 
 ---
 
-## 3. Files Changed in Phase D
+## 3. Files Changed in Phase E & F
 
 | File | Change |
 |---|---|
-| `frontend/src/lib/templates.js` | Added animation, semanticHighlight, showEmojis to DEFAULT_SETTINGS, resolveStyle, and effectiveSettings |
-| `frontend/src/components/CaptionRenderer.jsx` | Overwrote to introduce CSS animations, EMOJI_MAP dictionary, active word emojis, and semantic colors |
-| `frontend/src/components/TemplateBar.jsx` | Expose collapsible **Effects** toolbar with animation buttons and toggles |
+| `frontend/src/components/VideoStage.jsx` | Implemented ResizeObserver and display bounding box math to confine CaptionRenderer to actual video rect |
+| `frontend/src/pages/Studio.jsx` | Hydrates style settings from DB, triggers styling updates, added **Download Video** button and progress Dialog with polling |
+| `backend/export_helper.py` | Overwrote `to_ass(doc)` to parse overrides and generate dynamically styled subtitle code matching client selections |
+| `backend/renderer.py` | **NEW** — Asynchronous ffmpeg subprocess execution wrapper |
+| `backend/projects.py` | Added BackgroundTasks and POST `/render`, GET `/render/status`, GET `/render/download` routes |
 
 ---
 
 ## 4. Architecture Notes
 
 - **`CaptionDocument` schema in `models.py` remains FROZEN**
-- **Overlay elements (emojis/highlights)** are resolved purely on client side in `CaptionRenderer.jsx` using word properties, keeping backend data structure lightweight
-- **Denoise preference & Custom Styles** are saved directly to `localStorage` per project
-- **AI Content** is persisted to MongoDB `ai_content` field on project document
+- Styling settings are saved into `CaptionDocument.style` field during autosave, resolving server/client WYSIWYG contract.
+- Rendering utilizes native OS-installed `ffmpeg` executing in background worker threads without blocking main API routes.

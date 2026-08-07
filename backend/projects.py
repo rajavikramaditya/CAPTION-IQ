@@ -3,7 +3,7 @@ import re
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, Query
+from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, Query, BackgroundTasks
 
 from database import db
 from storage import put_object, get_object, APP_NAME
@@ -15,6 +15,7 @@ from transcription import transcribe_bytes
 from export_helper import to_srt, to_vtt, to_txt, to_ass
 from audio_enhance import denoise_audio
 from content_generator import generate_content
+from renderer import render_burned_video
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects")
@@ -300,3 +301,130 @@ async def generate_ai_content(
         {"$set": {"ai_content": content, "updated_at": now_dt()}},
     )
     return content
+
+
+async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path: str, filename: str, doc_dump: dict):
+    """Asynchronous background worker task that generates ASS subtitles, bakes them via ffmpeg, and uploads the MP4."""
+    try:
+        # Load video data from object storage
+        video_data, ctype = get_object(media_path)
+        
+        # Build CaptionDocument model to execute templates style resolution
+        doc = CaptionDocument(**doc_dump)
+        ass_str = to_ass(doc)
+
+        # Run render
+        rendered_bytes = await render_burned_video(video_data, ass_str, filename)
+
+        # Upload completed MP4 to storage renders path
+        out_path = f"{APP_NAME}/renders/{user_id}/{job_id}.mp4"
+        put_result = put_object(out_path, rendered_bytes, "video/mp4")
+
+        # Update Job in database
+        download_url = f"/api/projects/{project_id}/render/download/{job_id}"
+        await db.jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "status": "done",
+                "progress": 100,
+                "result_path": put_result["path"],
+                "download_url": download_url,
+                "updated_at": now_dt()
+            }}
+        )
+    except Exception as e:
+        logger.error(f"Render job {job_id} failed: {e}")
+        await db.jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "status": "failed",
+                "error": str(e),
+                "updated_at": now_dt()
+            }}
+        )
+
+
+@router.post("/{project_id}/render")
+async def render_project(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
+):
+    """Trigger background video rendering with captions burned in."""
+    project = await _owned_project(project_id, user)
+    if not project.get("media_id"):
+        raise HTTPException(status_code=400, detail="No video media found. Upload media first.")
+
+    raw_doc = project.get("caption_document")
+    if not raw_doc or not raw_doc.get("words"):
+        raise HTTPException(status_code=400, detail="No captions found. Generate captions first.")
+
+    media = await db.media_assets.find_one(
+        {"media_id": project["media_id"], "is_deleted": False}, {"_id": 0})
+    if not media:
+        raise HTTPException(status_code=404, detail="Media asset not found")
+
+    job_id = gen_id("job")
+    await db.jobs.insert_one({
+        "job_id": job_id, "user_id": user["user_id"], "project_id": project_id,
+        "type": "render", "status": "processing", "progress": 10,
+        "error": None, "created_at": now_dt(), "updated_at": now_dt(),
+    })
+
+    background_tasks.add_task(
+        _run_render_job,
+        project_id=project_id,
+        job_id=job_id,
+        user_id=user["user_id"],
+        media_path=media["storage_path"],
+        filename=media.get("original_filename") or "video.mp4",
+        doc_dump=raw_doc
+    )
+
+    return {"job_id": job_id, "status": "processing"}
+
+
+@router.get("/{project_id}/render/status/{job_id}")
+async def get_render_status(
+    project_id: str,
+    job_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Query progress and download link for active rendering jobs."""
+    await _owned_project(project_id, user)
+    job = await db.jobs.find_one({"job_id": job_id, "project_id": project_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Render job not found")
+    return job
+
+
+@router.get("/{project_id}/render/download/{job_id}")
+async def download_rendered_video(
+    project_id: str,
+    job_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Stream or download the completed burned-in MP4 video file."""
+    project = await _owned_project(project_id, user)
+    job = await db.jobs.find_one({"job_id": job_id, "project_id": project_id})
+    if not job or job.get("status") != "done":
+        raise HTTPException(status_code=404, detail="Rendered video not found or not ready yet")
+
+    storage_path = job.get("result_path")
+    try:
+        data, ctype = get_object(storage_path)
+    except Exception as e:
+        logger.error(f"Failed to fetch render result from storage: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch file from storage")
+
+    safe_title = re.sub(r'[^\w\s-]', '', project.get('title', 'captioned_video')).strip().replace(' ', '_')
+    filename = f"{safe_title}_captioned.mp4"
+
+    return Response(
+        content=data,
+        media_type="video/mp4",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(data)),
+        },
+    )

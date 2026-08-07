@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Loader2, Download, FileText, Captions, FileCode2, AlignLeft, Sparkles, ScrollText } from "lucide-react";
+import { Loader2, Download, FileText, Captions, FileCode2, AlignLeft, Sparkles, ScrollText, Film, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { VideoStage } from "@/components/VideoStage";
@@ -10,6 +10,8 @@ import { TemplateBar } from "@/components/TemplateBar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { getTemplate, resolveStyle, DEFAULT_TEMPLATE_ID, DEFAULT_SETTINGS } from "@/lib/templates";
 import { api, API, formatApiErrorDetail } from "@/lib/api";
 
@@ -148,6 +150,13 @@ export default function Studio() {
         const doc = data.caption_document;
         setCaptionDoc(doc);
         setResult(docToResult(doc));
+        // Hydrate visual template style from MongoDB if present
+        if (doc.style && doc.style.template_id) {
+          setTemplateId(doc.style.template_id);
+          if (doc.style.overrides) {
+            setSettings(doc.style.overrides);
+          }
+        }
       } catch (e) {
         toast.error("Project not found");
         navigate("/dashboard", { replace: true });
@@ -163,16 +172,38 @@ export default function Studio() {
   const handleSaveCaptionDoc = useCallback(async (updatedDoc) => {
     setSaveStatus("saving");
     clearTimeout(saveTimerRef.current);
+    // Embed the current styling parameters into the CaptionDocument schema style field
+    const docWithStyle = {
+      ...updatedDoc,
+      style: {
+        template_id: templateId,
+        overrides: settings,
+      },
+    };
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await api.put(`/projects/${projectId}/caption`, { caption_document: updatedDoc });
+        await api.put(`/projects/${projectId}/caption`, { caption_document: docWithStyle });
         setSaveStatus("saved");
       } catch (e) {
         setSaveStatus("error");
         toast.error("Failed to save edits. Please try again.");
       }
     }, 500);
-  }, [projectId]);
+  }, [projectId, templateId, settings]);
+
+  // Save styling configurations to MongoDB automatically when changed by user
+  useEffect(() => {
+    if (!captionDoc) return;
+    const docWithStyle = {
+      ...captionDoc,
+      style: {
+        template_id: templateId,
+        overrides: settings,
+      },
+    };
+    handleSaveCaptionDoc(docWithStyle);
+  }, [templateId, settings, handleSaveCaptionDoc]);
+
 
   // ---- Word update ----
   const handleWordUpdate = useCallback((wordId, patch) => {
@@ -382,6 +413,67 @@ export default function Studio() {
     }
   }, [result, projectId]);
 
+  // ---- Video Burn-In Rendering State & Polling ----
+  const [renderOpen, setRenderOpen] = useState(false);
+  const [renderStatus, setRenderStatus] = useState("idle"); // idle | rendering | done | failed
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderUrl, setRenderUrl] = useState(null);
+  const [renderError, setRenderError] = useState(null);
+  const pollTimerRef = useRef(null);
+
+  const handleStartRender = async () => {
+    if (!result) return;
+    setRenderOpen(true);
+    setRenderStatus("rendering");
+    setRenderProgress(10);
+    setRenderUrl(null);
+    setRenderError(null);
+
+    try {
+      const { data } = await api.post(`/projects/${projectId}/render`);
+      const jobId = data.job_id;
+      
+      let currentProgress = 10;
+      
+      // Poll rendering status every 2.5 seconds
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const resp = await api.get(`/projects/${projectId}/render/status/${jobId}`);
+          const job = resp.data;
+          
+          if (job.status === "done") {
+            clearInterval(pollTimerRef.current);
+            setRenderStatus("done");
+            setRenderProgress(100);
+            setRenderUrl(job.download_url);
+            toast.success("Video rendering complete! 🎉");
+          } else if (job.status === "failed") {
+            clearInterval(pollTimerRef.current);
+            setRenderStatus("failed");
+            setRenderError(job.error || "FFmpeg rendering failed");
+            toast.error("Video rendering failed");
+          } else {
+            // Processing: simulate progressive increment
+            currentProgress = Math.min(currentProgress + 8, 92);
+            setRenderProgress(currentProgress);
+          }
+        } catch (err) {
+          console.error("Error polling render status:", err);
+        }
+      }, 2500);
+
+    } catch (e) {
+      setRenderStatus("failed");
+      setRenderError(formatApiErrorDetail(e.response?.data?.detail) || "Failed to start rendering job");
+      toast.error("Failed to start render");
+    }
+  };
+
+  // Clear timer on unmount
+  useEffect(() => {
+    return () => clearInterval(pollTimerRef.current);
+  }, []);
+
   if (pageLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
@@ -398,6 +490,16 @@ export default function Studio() {
       {result && (
         <div className="flex items-center justify-end gap-3 px-6 lg:px-8 py-2 bg-white border-b border-gray-100">
           <span className="text-xs text-gray-400 mr-auto">Studio</span>
+          
+          <button
+            onClick={handleStartRender}
+            data-testid="render-video-btn"
+            className="inline-flex items-center gap-2 text-sm font-semibold bg-[#FA5D29] hover:bg-[#E04C1E] text-white px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+          >
+            <Film className="h-3.5 w-3.5" />
+            Download Video
+          </button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -517,6 +619,80 @@ export default function Studio() {
           </div>
         </div>
       </main>
+
+      {/* Dynamic Video Render Progress Dialog */}
+      <Dialog open={renderOpen} onOpenChange={(open) => {
+        if (!open && renderStatus === "rendering") {
+          toast.info("Rendering continues in background.");
+        }
+        if (!open) {
+          clearInterval(pollTimerRef.current);
+        }
+        setRenderOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-gray-900">
+              <Film className="h-5 w-5 text-[#FA5D29]" />
+              Export Captioned Video
+            </DialogTitle>
+            <DialogDescription className="text-sm text-gray-500">
+              We are baking your selected dynamic template styling directly into the video stream.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
+            {renderStatus === "rendering" && (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin text-[#FA5D29]" />
+                <div className="w-full space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">Rendering captions ({renderProgress}%)</p>
+                  <Progress value={renderProgress} className="h-2 w-full bg-gray-100 [&>div]:bg-[#FA5D29]" />
+                </div>
+                <p className="text-xs text-gray-400">This takes 10-30 seconds depending on video length.</p>
+              </>
+            )}
+
+            {renderStatus === "done" && (
+              <>
+                <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center text-green-500">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Your video is ready! 🎉</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Captions baked in with perfect styling.</p>
+                </div>
+                <a
+                  href={`${API}${renderUrl}`}
+                  download
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-[#FA5D29] hover:bg-[#E04C1E] text-white font-semibold py-2.5 rounded-xl shadow-sm transition-colors text-sm"
+                >
+                  <Download className="h-4 w-4" />
+                  Download cap_video.mp4
+                </a>
+              </>
+            )}
+
+            {renderStatus === "failed" && (
+              <>
+                <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Rendering Failed</p>
+                  <p className="text-xs text-red-500 mt-1 max-w-xs">{renderError}</p>
+                </div>
+                <button
+                  onClick={handleStartRender}
+                  className="w-full mt-2 bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 rounded-xl text-sm transition-colors"
+                >
+                  Try Again
+                </button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
