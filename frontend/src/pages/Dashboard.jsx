@@ -217,22 +217,37 @@ export default function Dashboard() {
   useEffect(() => { load(); }, [load]);
 
   const handleFile = async (file) => {
+    handleFiles([file]);
+  };
+
+  const handleFiles = async (files) => {
+    if (!files || !files.length) return;
     setCreating(true);
-    try {
-      const duration = await getDuration(file);
-      const { data: proj } = await api.post("/projects", { title: file.name });
-      const form = new FormData();
-      form.append("file", file);
-      form.append("duration", duration);
-      await api.post(`/projects/${proj.project_id}/media`, form);
-      // Capture thumbnail in background
-      captureThumbnail(file, proj.project_id).catch(() => {});
-      setDialogOpen(false);
-      navigate(`/studio/${proj.project_id}`);
-    } catch (e) {
-      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Upload failed");
-    } finally {
-      setCreating(false);
+    const fileList = Array.from(files);
+    toast.info(`Queueing ${fileList.length} project${fileList.length > 1 ? "s" : ""} for upload…`);
+
+    let lastProjId = null;
+    for (const file of fileList) {
+      try {
+        const duration = await getDuration(file);
+        const { data: proj } = await api.post("/projects", { title: file.name });
+        const form = new FormData();
+        form.append("file", file);
+        form.append("duration", duration);
+        await api.post(`/projects/${proj.project_id}/media`, form);
+        captureThumbnail(file, proj.project_id).catch(() => {});
+        lastProjId = proj.project_id;
+        toast.success(`Uploaded "${file.name}"`);
+      } catch (e) {
+        toast.error(`Failed to upload "${file.name}"`);
+      }
+    }
+
+    setCreating(false);
+    setDialogOpen(false);
+    await load();
+    if (lastProjId && fileList.length === 1) {
+      navigate(`/studio/${lastProjId}`);
     }
   };
 

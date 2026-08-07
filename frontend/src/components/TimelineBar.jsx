@@ -20,7 +20,7 @@ function fmtTime(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSeek }) {
+export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSeek, onSegmentTimingChange }) {
   const trackRef = useRef(null);
 
   const dur = Math.max(duration || 0, segments.reduce((max, s) => Math.max(max, s.end || 0), 0), 1);
@@ -99,13 +99,65 @@ export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSe
               }}
               title={`${seg.text} (${fmtTime(seg.start)} - ${fmtTime(seg.end)})`}
               data-testid={`timeline-segment-${i}`}
-              className={`absolute top-1 bottom-1 rounded-md px-1.5 text-[10px] font-semibold truncate flex items-center transition-all ${
+              className={`absolute top-1 bottom-1 rounded-md px-1.5 text-[10px] font-semibold truncate flex items-center justify-between transition-all group/seg ${
                 isActive
                   ? "bg-[#FA5D29] text-white shadow-sm ring-2 ring-orange-300 z-10 scale-[1.02]"
                   : "bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200/80"
               }`}
             >
-              {seg.text}
+              {/* Left Drag Handle */}
+              <div
+                className="w-1.5 h-full bg-white/40 hover:bg-white rounded-l cursor-ew-resize opacity-0 group-hover/seg:opacity-100 transition-opacity"
+                title="Drag to adjust start time"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const startX = e.clientX;
+                  const initStart = seg.start;
+                  const onMouseMove = (moveEvent) => {
+                    if (!trackRef.current) return;
+                    const rect = trackRef.current.getBoundingClientRect();
+                    const deltaX = moveEvent.clientX - startX;
+                    const deltaTime = (deltaX / rect.width) * dur;
+                    const newStart = Math.max(0, Math.min(seg.end - 0.1, initStart + deltaTime));
+                    onSegmentTimingChange?.(seg.id, newStart, seg.end);
+                  };
+                  const onMouseUp = () => {
+                    window.removeEventListener("mousemove", onMouseMove);
+                    window.removeEventListener("mouseup", onMouseUp);
+                  };
+                  window.addEventListener("mousemove", onMouseMove);
+                  window.addEventListener("mouseup", onMouseUp);
+                }}
+              />
+
+              <span className="truncate flex-1 px-1">{seg.text}</span>
+
+              {/* Right Drag Handle */}
+              <div
+                className="w-1.5 h-full bg-white/40 hover:bg-white rounded-r cursor-ew-resize opacity-0 group-hover/seg:opacity-100 transition-opacity"
+                title="Drag to adjust end time"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const startX = e.clientX;
+                  const initEnd = seg.end;
+                  const onMouseMove = (moveEvent) => {
+                    if (!trackRef.current) return;
+                    const rect = trackRef.current.getBoundingClientRect();
+                    const deltaX = moveEvent.clientX - startX;
+                    const deltaTime = (deltaX / rect.width) * dur;
+                    const newEnd = Math.max(seg.start + 0.1, Math.min(dur, initEnd + deltaTime));
+                    onSegmentTimingChange?.(seg.id, seg.start, newEnd);
+                  };
+                  const onMouseUp = () => {
+                    window.removeEventListener("mousemove", onMouseMove);
+                    window.removeEventListener("mouseup", onMouseUp);
+                  };
+                  window.addEventListener("mousemove", onMouseMove);
+                  window.addEventListener("mouseup", onMouseUp);
+                }}
+              />
             </div>
           );
         })}

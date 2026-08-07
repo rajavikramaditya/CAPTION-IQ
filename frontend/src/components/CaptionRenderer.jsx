@@ -198,6 +198,22 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
               );
             })}
           </p>
+
+          {/* Dual / Bilingual Secondary Subtitle Line */}
+          {style.bilingualText && (
+            <p
+              style={{
+                margin: `${fontSize * 0.15}px 0 0 0`,
+                fontFamily: `'${style.font}', sans-serif`,
+                fontSize: `${fontSize * 0.72}px`,
+                color: "rgba(255, 255, 255, 0.8)",
+                textAlign: "center",
+                fontWeight: 500,
+              }}
+            >
+              {style.bilingualText}
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -377,6 +377,20 @@ export default function Studio() {
     return chunks[activeChunkIndex].words.map((w) => ({ ...w, active: w === activeWord }));
   }, [chunks, activeChunkIndex, activeWord]);
 
+  const handleSegmentTimingChange = useCallback((segId, newStart, newEnd) => {
+    setCaptionDoc((prev) => {
+      if (!prev) return prev;
+      pushHistory(prev);
+      const segments = prev.segments.map((seg) =>
+        seg.id === segId ? { ...seg, start: newStart, end: newEnd } : seg
+      );
+      const updated = { ...prev, segments };
+      setResult(docToResult(updated));
+      handleSaveCaptionDoc(updated);
+      return updated;
+    });
+  }, [pushHistory, handleSaveCaptionDoc]);
+
   const previewWords = useMemo(() => {
     if (overlayWords.length) return overlayWords;
     if (currentTime < 0.25 && chunks.length) {
@@ -744,6 +758,7 @@ export default function Studio() {
               currentTime={currentTime}
               duration={captionDoc.duration || videoRef.current?.duration || 0}
               onSeek={handleSeek}
+              onSegmentTimingChange={handleSegmentTimingChange}
             />
           )}
           <TemplateBar

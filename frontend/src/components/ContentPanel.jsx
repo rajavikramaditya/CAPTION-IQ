@@ -121,15 +121,53 @@ export const ContentPanel = ({ projectId, hasCaptions, initialContent, onSeek })
           </h2>
         </div>
         {content && (
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={loading}
-            title="Re-generate"
-            className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#FA5D29] hover:bg-orange-50 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const igText = [
+                  content.hook ? `⚡ ${content.hook}\n` : "",
+                  content.instagram_caption || "",
+                  content.cta ? `\n\n🎯 ${content.cta}` : "",
+                  content.hashtags?.length ? `\n\n${content.hashtags.map((h) => `#${h}`).join(" ")}` : "",
+                ].join("\n").strip?.() || "";
+                copy("all_ig", igText);
+              }}
+              data-testid="copy-ig-btn"
+              title="Copy formatted post for Instagram"
+              className="text-xs font-semibold px-2 py-1 rounded-lg bg-pink-50 text-pink-700 border border-pink-200 hover:bg-pink-100 transition-colors flex items-center gap-1"
+            >
+              <Instagram className="h-3 w-3" /> IG Post
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const ytText = [
+                  content.youtube_title ? `Title: ${content.youtube_title}\n\n` : "",
+                  content.summary || "",
+                  content.cta ? `\n\n🎯 ${content.cta}` : "",
+                  content.seo_keywords?.length ? `\n\nTags: ${content.seo_keywords.join(", ")}` : "",
+                ].join("\n") || "";
+                copy("all_yt", ytText);
+              }}
+              data-testid="copy-yt-btn"
+              title="Copy formatted post for YouTube"
+              className="text-xs font-semibold px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-1"
+            >
+              <Youtube className="h-3 w-3" /> YT Post
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={loading}
+              title="Re-generate"
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#FA5D29] hover:bg-orange-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         )}
       </div>
 

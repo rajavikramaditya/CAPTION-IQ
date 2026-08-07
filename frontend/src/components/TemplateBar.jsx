@@ -60,6 +60,26 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Caption Style</span>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              const name = prompt("Enter a name for your custom preset:", "My Custom Style");
+              if (!name) return;
+              try {
+                const existing = JSON.parse(localStorage.getItem("captioniq:custom_presets") || "[]");
+                const newPreset = { id: `preset_${Date.now()}`, name, settings: { ...settings } };
+                localStorage.setItem("captioniq:custom_presets", JSON.stringify([...existing, newPreset]));
+                toast.success(`Preset "${name}" saved! ✨`);
+              } catch (e) {
+                toast.error("Failed to save preset");
+              }
+            }}
+            data-testid="save-preset-btn"
+            title="Save current style settings as reusable custom preset"
+            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-orange-50 border border-orange-200 text-[#FA5D29] hover:bg-orange-100 flex items-center gap-1.5 transition-colors"
+          >
+            <Save className="h-3.5 w-3.5" /> Save Preset
+          </button>
           <FontUploader onFontUploaded={(font) => onSettingsChange({ customFont: font.family })} />
           <div className="flex items-center gap-1" data-testid="position-controls">
             <Seg active={eff.position === "top"} onClick={() => onSettingsChange({ position: "top" })} title="Top" testId="position-top">

@@ -5,8 +5,11 @@ export const VideoUploader = ({ onFile, onSample }) => {
   const inputRef = useRef(null);
 
   const handleChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) onFile(file);
+    const files = e.target.files;
+    if (files && files.length) {
+      if (files.length === 1) onFile(files[0]);
+      else onFile(files);
+    }
   };
 
   return (
@@ -18,6 +21,7 @@ export const VideoUploader = ({ onFile, onSample }) => {
       <input
         ref={inputRef}
         type="file"
+        multiple
         accept="video/*,audio/*"
         className="hidden"
         data-testid="video-file-input"
