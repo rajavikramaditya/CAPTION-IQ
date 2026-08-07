@@ -1,3 +1,4 @@
+from typing import Optional
 """Projects + media ingestion (M-CORE + M-INGEST)."""
 import re
 import logging

@@ -7,7 +7,8 @@ import logging
 
 from auth import get_current_user
 from database import db
-from storage import put_object, APP_NAME, gen_id
+from storage import put_object, APP_NAME
+from models import gen_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/fonts", tags=["fonts"])

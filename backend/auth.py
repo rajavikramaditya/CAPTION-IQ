@@ -29,7 +29,7 @@ EMERGENT_AUTH_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/ses
 
 
 def _secret() -> str:
-    return os.environ["JWT_SECRET"]
+    return os.environ.get("JWT_SECRET", "super_secret_jwt_key_captioniq_2025")
 
 
 # ---------- password ----------
@@ -58,10 +58,12 @@ def create_refresh_token(user_id: str) -> str:
 
 
 def _set_jwt_cookies(response: Response, access: str, refresh: str):
-    response.set_cookie("access_token", access, httponly=True, secure=True,
-                        samesite="none", max_age=ACCESS_MIN * 60, path="/")
-    response.set_cookie("refresh_token", refresh, httponly=True, secure=True,
-                        samesite="none", max_age=REFRESH_DAYS * 86400, path="/")
+    secure = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+    samesite = "none" if secure else "lax"
+    response.set_cookie("access_token", access, httponly=True, secure=secure,
+                        samesite=samesite, max_age=ACCESS_MIN * 60, path="/")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=secure,
+                        samesite=samesite, max_age=REFRESH_DAYS * 86400, path="/")
 
 
 def _public(user: dict) -> dict:

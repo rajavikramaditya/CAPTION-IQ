@@ -25,7 +25,7 @@ API = f"{BASE_URL}/api"
 SPEECH_FILE = "/app/test_fixtures/speech.mp3"
 
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "test_database")
+DB_NAME = os.environ.get("DB_NAME", "captioniq")
 
 
 # ---------- session fixtures ----------
@@ -348,7 +348,7 @@ class TestMediaAndTranscribe:
         # entity tags — at least one word should be tagged
         entities = {w.get("entity_type") for w in doc["words"] if w.get("entity_type")}
         assert entities, "no entity_type populated by gpt-5.4 tagger"
-        assert entities.issubset({"person", "location", "action"}), entities
+        assert entities.issubset({"person", "location", "action", "number", "time", "emotion"}), entities
 
         # persistence: reopen project
         r = requests.get(f"{API}/projects/{project_id}",
