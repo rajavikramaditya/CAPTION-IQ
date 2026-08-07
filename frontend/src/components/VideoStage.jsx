@@ -5,6 +5,7 @@ import { CaptionRenderer } from "@/components/CaptionRenderer";
 export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onChangeVideo }) => {
   const containerRef = useRef(null);
   const [showSafeArea, setShowSafeArea] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
   const [videoRect, setVideoRect] = useState({
     left: "0px",
     top: "0px",
@@ -18,10 +19,12 @@ export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onC
       return;
     }
 
-    const clientW = video.clientWidth;
-    const clientH = video.clientHeight;
     const videoW = video.videoWidth;
     const videoH = video.videoHeight;
+    setIsPortrait(videoW < videoH);
+
+    const clientW = video.clientWidth;
+    const clientH = video.clientHeight;
 
     const videoRatio = videoW / videoH;
     const clientRatio = clientW / clientH;
@@ -73,15 +76,16 @@ export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onC
   }, [videoUrl]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex items-center justify-center bg-zinc-950">
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        controls
-        onTimeUpdate={onTimeUpdate}
-        data-testid="preview-video"
-        className="w-full h-full object-contain"
-      />
+    <div ref={containerRef} className="relative w-full h-full flex items-center justify-center bg-zinc-950 p-2 overflow-hidden">
+      <div className={`relative flex items-center justify-center w-full h-full max-h-[580px] ${isPortrait ? "aspect-[9/16] max-w-[330px]" : "aspect-video max-w-full"} mx-auto bg-black rounded-xl overflow-hidden shadow-2xl`}>
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          controls
+          onTimeUpdate={onTimeUpdate}
+          data-testid="preview-video"
+          className="w-full h-full object-contain"
+        />
 
       {/* 
         Professional caption rendering overlay wrapper.
@@ -112,6 +116,7 @@ export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onC
         )}
 
         <CaptionRenderer words={words} style={style} />
+        </div>
       </div>
 
       {/* Control overlay buttons: Change video & Safe Area Guides toggle */}

@@ -38,6 +38,6 @@
   "seed_data_creation": "Created /app/test_fixtures/speech.mp3 (gTTS, 37 KB) with known transcript for Whisper testing",
   "retest_needed": false,
   "main_agent_can_self_test": true,
-  "context_for_next_testing_agent": "Backend BASE URL must be set via REACT_APP_BACKEND_URL=https://caption-studio-ai-1.preview.emergentagent.com when running pytest. Fixture MP3 at /app/test_fixtures/speech.mp3 is reusable. gTTS was pip-installed to synthesize speech since ffmpeg/espeak are unavailable.",
+  "context_for_next_testing_agent": "Backend BASE URL must be set via REACT_APP_BACKEND_URL=https://editor-rebuild-1.preview.emergentagent.com when running pytest. Fixture MP3 at /app/test_fixtures/speech.mp3 is reusable. gTTS was pip-installed to synthesize speech since ffmpeg/espeak are unavailable.",
   "loaded_skills": ["ai-testing-core", "ai-testing-audio"]
 }
