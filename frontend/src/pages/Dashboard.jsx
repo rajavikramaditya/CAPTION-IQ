@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Film, Trash2, Loader2, Clock, Type, Sparkles,
-  Search, SortDesc, Pencil, CheckCircle2, X, Shield,
+  Search, SortDesc, Pencil, CheckCircle2, X, Shield, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -110,7 +110,7 @@ function InlineRename({ projectId, title, onDone }) {
 }
 
 /** Project card */
-function ProjectCard({ project, onDelete, onRename, onClick }) {
+function ProjectCard({ project, onDelete, onRename, onClick, onClone }) {
   const [renaming, setRenaming] = useState(false);
   const thumb = localStorage.getItem(`captioniq:thumb:${project.project_id}`);
 
