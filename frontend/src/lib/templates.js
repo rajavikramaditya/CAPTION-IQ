@@ -161,15 +161,24 @@ export function getTemplate(id) {
 // Merge a template spec with the user's per-project overrides.
 export function resolveStyle(template, settings) {
   const s = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  const font = s.customFont || template.font;
+  const activeColor = s.activeColor || template.active.color;
+  const boxColor = s.boxColor || template.box.color;
+  const strokeWidth = s.strokeWidth ?? template.stroke.width;
+
   return {
     ...template,
+    font,
     fontScale: SIZE_SCALES[s.size] ?? 1,
     uppercase: s.uppercase == null ? template.uppercase : s.uppercase,
     position: s.position || template.position,
-    box: s.boxOverride == null ? template.box : { ...template.box, enabled: s.boxOverride },
+    box: s.boxOverride == null ? { ...template.box, color: boxColor } : { ...template.box, enabled: s.boxOverride, color: boxColor },
+    active: { ...template.active, color: activeColor },
+    stroke: { ...template.stroke, width: strokeWidth },
     animation: s.animation,
     semanticHighlight: s.semanticHighlight,
     showEmojis: s.showEmojis,
+    enabledCategories: s.enabledCategories,
   };
 }
 

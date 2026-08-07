@@ -64,6 +64,8 @@ export const CaptionEditor = ({
   language = "hinglish",
   onLanguageChange,
   onTranslate,
+  onRemoveFillers,
+  onSwitchScript,
 }) => {
   const activeRef = useRef(null);
   const hasCaptions = lines && lines.length > 0;
@@ -92,9 +94,37 @@ export const CaptionEditor = ({
           </h2>
         </div>
 
-        {/* Save status — only show when captions exist */}
+        {/* Header toolbar */}
         {hasCaptions && isEditable && (
-          <SaveIndicator status={saveStatus} />
+          <div className="flex items-center gap-2">
+            {/* Filler Removal Button */}
+            {onRemoveFillers && (
+              <button
+                type="button"
+                onClick={onRemoveFillers}
+                data-testid="remove-fillers-btn"
+                title="Remove filler words (um, uh, like, matlab, basically)"
+                className="text-xs font-semibold px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors flex items-center gap-1"
+              >
+                <span>Remove Fillers</span>
+              </button>
+            )}
+
+            {/* Script Switcher */}
+            {onSwitchScript && (
+              <button
+                type="button"
+                onClick={onSwitchScript}
+                data-testid="switch-script-btn"
+                title="Toggle script: Roman Hindi ↔ Devanagari Hindi"
+                className="text-xs font-semibold px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors"
+              >
+                Script (अ/A)
+              </button>
+            )}
+
+            <SaveIndicator status={saveStatus} />
+          </div>
         )}
       </div>
 

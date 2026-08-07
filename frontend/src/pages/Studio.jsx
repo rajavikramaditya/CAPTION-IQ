@@ -488,6 +488,58 @@ export default function Studio() {
     }
   }, [captionDoc, projectId, pushHistory, resetHistory]);
 
+  const [scriptMode, setScriptMode] = useState("roman");
+
+  const handleSwitchScript = useCallback(async () => {
+    if (!captionDoc) return;
+    const nextScript = scriptMode === "roman" ? "devanagari" : "roman";
+    const label = nextScript === "devanagari" ? "Devanagari Hindi" : "Roman Hindi";
+    const tid = toast.loading(`Switching script to ${label}…`);
+    try {
+      const { data } = await api.post(`/projects/${projectId}/script?target_script=${nextScript}`);
+      pushHistory(captionDoc);
+      resetHistory(data);
+      setResult(docToResult(data));
+      setScriptMode(nextScript);
+      toast.success(`Switched script to ${label}!`, { id: tid });
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Script switch failed", { id: tid });
+    }
+  }, [captionDoc, scriptMode, projectId, pushHistory, resetHistory]);
+
+  const handleRemoveFillers = useCallback(() => {
+    if (!captionDoc) return;
+    const FILLERS = new Set(["um", "uh", "like", "basically", "matlab", "you know", "aapko pata hai", "aah", "hmm"]);
+    let count = 0;
+    const words = captionDoc.words.filter((w) => {
+      const clean = w.text.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (FILLERS.has(clean)) { count++; return false; }
+      return true;
+    });
+
+    if (count === 0) {
+      toast.info("No filler words found");
+      return;
+    }
+
+    pushHistory(captionDoc);
+    const wordById = Object.fromEntries(words.map((w) => [w.id, w]));
+    const segments = captionDoc.segments.map((seg) => {
+      const segWords = seg.word_ids.map((id) => wordById[id]).filter(Boolean);
+      return {
+        ...seg,
+        word_ids: segWords.map((w) => w.id),
+        text: segWords.map((w) => w.text).join(" "),
+      };
+    }).filter((s) => s.word_ids.length > 0);
+
+    const updated = { ...captionDoc, words, segments, word_count: words.length };
+    setCaptionDoc(updated);
+    setResult(docToResult(updated));
+    handleSaveCaptionDoc(updated);
+    toast.success(`Removed ${count} filler word${count !== 1 ? "s" : ""}! 🧹`);
+  }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
+
   const handleSeek = (t) => {
     if (videoRef.current) {
       videoRef.current.currentTime = t;
@@ -769,6 +821,8 @@ export default function Studio() {
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 onTranslate={handleTranslate}
+                onRemoveFillers={handleRemoveFillers}
+                onSwitchScript={handleSwitchScript}
               />
             ) : (
               <ContentPanel

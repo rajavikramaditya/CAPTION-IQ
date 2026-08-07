@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, Type, Square,
-  Sparkles, Smile, Settings2, Play
+  Sparkles, Smile, Settings2, Play, Palette, Save, CheckCircle2
 } from "lucide-react";
 import { TEMPLATES, getTemplate, effectiveSettings } from "@/lib/templates";
 
@@ -122,6 +122,53 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
             </div>
           </div>
 
+          {/* Custom Color Pickers row */}
+          <div className="flex items-center gap-4 flex-wrap pt-1 border-t border-gray-200/60">
+            {/* Active Word Color */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-gray-500 flex items-center gap-1">
+                <Palette className="h-3 w-3 text-[#FA5D29]" /> Active Color
+              </span>
+              <input
+                type="color"
+                value={settings?.activeColor || template.active.color}
+                onChange={(e) => onSettingsChange({ activeColor: e.target.value })}
+                data-testid="active-color-picker"
+                className="h-6 w-7 rounded cursor-pointer border-0 bg-transparent p-0"
+              />
+            </div>
+
+            {/* Background Box Color */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-gray-500">Box Color</span>
+              <input
+                type="color"
+                value={settings?.boxColor || template.box.color || "#000000"}
+                onChange={(e) => onSettingsChange({ boxColor: e.target.value })}
+                data-testid="box-color-picker"
+                className="h-6 w-7 rounded cursor-pointer border-0 bg-transparent p-0"
+              />
+            </div>
+
+            {/* Stroke Width Slider */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+              <span className="text-[11px] font-semibold text-gray-500 shrink-0">Stroke</span>
+              <input
+                type="range"
+                min={0}
+                max={5}
+                step={0.5}
+                value={settings?.strokeWidth ?? template.stroke.width ?? 0}
+                onChange={(e) => onSettingsChange({ strokeWidth: Number(e.target.value) })}
+                data-testid="stroke-width-slider"
+                className="flex-1 h-1.5 rounded-full accent-[#FA5D29] cursor-pointer"
+              />
+              <span className="text-[10px] font-bold text-gray-600 w-4 text-center">
+                {settings?.strokeWidth ?? template.stroke.width ?? 0}
+              </span>
+            </div>
+          </div>
+
           {/* Words Per Line slider */}
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-gray-500 shrink-0 flex items-center gap-1">
@@ -143,14 +190,54 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
           </div>
 
           {/* Semantic & Emojis toggles */}
-          <div className="flex items-center gap-2">
-            <Seg active={eff.semanticHighlight} onClick={() => onSettingsChange({ semanticHighlight: !eff.semanticHighlight })} title="AI Highlight Entities" testId="toggle-semantic-highlight">
-              <Sparkles className="h-3.5 w-3.5" /> Highlight
-            </Seg>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Seg active={eff.semanticHighlight} onClick={() => onSettingsChange({ semanticHighlight: !eff.semanticHighlight })} title="AI Highlight Entities" testId="toggle-semantic-highlight">
+                <Sparkles className="h-3.5 w-3.5" /> Highlight
+              </Seg>
 
-            <Seg active={eff.showEmojis} onClick={() => onSettingsChange({ showEmojis: !eff.showEmojis })} title="AI Auto Emojis" testId="toggle-show-emojis">
-              <Smile className="h-3.5 w-3.5" /> Emojis
-            </Seg>
+              <Seg active={eff.showEmojis} onClick={() => onSettingsChange({ showEmojis: !eff.showEmojis })} title="AI Auto Emojis" testId="toggle-show-emojis">
+                <Smile className="h-3.5 w-3.5" /> Emojis
+              </Seg>
+            </div>
+
+            {/* Smart Category Filter Toggles */}
+            {eff.semanticHighlight && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-gray-200/60" data-testid="category-toggles">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Highlight:</span>
+                {[
+                  { type: "person",   label: "Persons 🟡",  color: "border-yellow-400 text-yellow-800 bg-yellow-50" },
+                  { type: "action",   label: "Actions 🟢",  color: "border-green-400 text-green-800 bg-green-50" },
+                  { type: "location", label: "Places 🔵",   color: "border-blue-400 text-blue-800 bg-blue-50" },
+                  { type: "number",   label: "Numbers 🟣",  color: "border-purple-400 text-purple-800 bg-purple-50" },
+                  { type: "time",     label: "Time 🌐",     color: "border-cyan-400 text-cyan-800 bg-cyan-50" },
+                  { type: "emotion",  label: "Emotions 💖", color: "border-pink-400 text-pink-800 bg-pink-50" },
+                ].map(({ type, label, color }) => {
+                  const enabledList = settings?.enabledCategories ?? ["person", "action", "location", "number", "time", "emotion"];
+                  const isChecked = enabledList.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        const next = isChecked
+                          ? enabledList.filter((c) => c !== type)
+                          : [...enabledList, type];
+                        onSettingsChange({ enabledCategories: next });
+                      }}
+                      data-testid={`toggle-category-${type}`}
+                      className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                        isChecked
+                          ? `${color} font-bold shadow-xs scale-[1.02]`
+                          : "border-gray-200 text-gray-400 bg-white opacity-60 hover:opacity-100"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

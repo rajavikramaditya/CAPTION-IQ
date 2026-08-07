@@ -466,9 +466,30 @@ async def translate_project(
     doc = CaptionDocument(**raw_doc)
     translated_doc = await translate_caption_doc(doc, target_lang)
 
+    return translated_doc.model_dump()
+
+
+@router.post("/{project_id}/script")
+async def switch_script(
+    project_id: str,
+    target_script: str = Query("devanagari", description="Target script: devanagari | roman"),
+    user: dict = Depends(get_current_user),
+):
+    """Switch caption script mode between Roman Hindi and Devanagari Hindi using LLM transliteration."""
+    project = await _owned_project(project_id, user)
+    raw_doc = project.get("caption_document")
+    if not raw_doc or not raw_doc.get("words"):
+        raise HTTPException(status_code=400, detail="No captions found")
+
+    doc = CaptionDocument(**raw_doc)
+    target = "Devanagari Hindi script (e.g. मैं कल आऊंगा)" if target_script == "devanagari" else "Roman Hindi script (e.g. Main kal aaunga)"
+    
+    from translator import translate_caption_doc
+    new_doc = await translate_caption_doc(doc, target)
+
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$set": {"caption_document": translated_doc.model_dump(), "updated_at": now_dt()}}
+        {"$set": {"caption_document": new_doc.model_dump(), "updated_at": now_dt()}}
     )
 
-    return translated_doc.model_dump()
+    return new_doc.model_dump()

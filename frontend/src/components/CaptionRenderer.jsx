@@ -86,26 +86,39 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
     paintOrder: "stroke fill",
   };
 
+  const isCategoryEnabled = (type) => {
+    if (!type) return false;
+    if (!style.semanticHighlight) return false;
+    // Default: all categories enabled if enabledCategories set is undefined
+    if (!style.enabledCategories) return true;
+    return style.enabledCategories.includes(type);
+  };
+
   const getWordColor = (w, active) => {
     if (active) {
-      if (style.semanticHighlight && w.entity_type) {
-        if (w.entity_type === "person") return "#FACC15";   // Bright Yellow
+      if (isCategoryEnabled(w.entity_type)) {
+        if (w.entity_type === "person")   return "#FACC15"; // Bright Yellow
         if (w.entity_type === "location") return "#60A5FA"; // Bright Blue
-        if (w.entity_type === "action") return "#4ADE80";   // Bright Green
+        if (w.entity_type === "action")   return "#4ADE80"; // Bright Green
+        if (w.entity_type === "number")   return "#C084FC"; // Bright Purple
+        if (w.entity_type === "time")     return "#22D3EE"; // Bright Cyan
+        if (w.entity_type === "emotion")  return "#F472B6"; // Bright Pink
       }
-      if (w.speaker_id === "speaker_b") return "#C084FC"; // Speaker B Purple Accent
+      if (w.speaker_id === "speaker_b") return "#C084FC";
       return style.active.color;
     }
-    if (w.speaker_id === "speaker_b") return "#E9D5FF";   // Soft Purple for Speaker B
+    if (w.speaker_id === "speaker_b") return "#E9D5FF";
     return style.color;
   };
 
   const wordStyle = (w, active) => {
-    const isUnderlined = !active && style.semanticHighlight && w.entity_type;
+    const isUnderlined = !active && isCategoryEnabled(w.entity_type);
     const borderBottomColor =
-      w.entity_type === "person" ? "rgba(250,204,21,0.6)" :
-      w.entity_type === "location" ? "rgba(96,165,250,0.6)" :
-      w.entity_type === "action" ? "rgba(74,222,128,0.6)" : "transparent";
+      w.entity_type === "person"   ? "rgba(250,204,21,0.7)" :
+      w.entity_type === "location" ? "rgba(96,165,250,0.7)" :
+      w.entity_type === "action"   ? "rgba(74,222,128,0.7)" :
+      w.entity_type === "number"   ? "rgba(192,132,252,0.7)" :
+      w.entity_type === "emotion"  ? "rgba(244,114,182,0.7)" : "transparent";
 
     return {
       display: "inline-block",

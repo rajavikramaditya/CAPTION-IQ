@@ -4,6 +4,7 @@ import { CaptionRenderer } from "@/components/CaptionRenderer";
 
 export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onChangeVideo }) => {
   const containerRef = useRef(null);
+  const [showSafeArea, setShowSafeArea] = useState(false);
   const [videoRect, setVideoRect] = useState({
     left: "0px",
     top: "0px",
@@ -88,26 +89,58 @@ export const VideoStage = ({ videoUrl, videoRef, words, style, onTimeUpdate, onC
         Ensures the font size and margins are uniform, centered, and locked to the video.
       */}
       <div
-        className="absolute pointer-events-none"
+        data-testid="caption-overlay-wrapper"
         style={{
+          position: "absolute",
           left: videoRect.left,
           top: videoRect.top,
           width: videoRect.width,
           height: videoRect.height,
+          pointerEvents: "none",
         }}
       >
+        {/* Safe Area Guides Grid Overlay */}
+        {showSafeArea && (
+          <div className="absolute inset-x-[8%] top-[12%] bottom-[18%] border-2 border-dashed border-red-500/50 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+            <span className="text-[10px] font-mono text-red-400 bg-black/60 px-1.5 py-0.5 rounded self-start">
+              Reels / Shorts Safe Area
+            </span>
+            <span className="text-[10px] font-mono text-red-400 bg-black/60 px-1.5 py-0.5 rounded self-end">
+              Social UI Margin
+            </span>
+          </div>
+        )}
+
         <CaptionRenderer words={words} style={style} />
       </div>
 
-      <button
-        type="button"
-        data-testid="change-video-btn"
-        onClick={onChangeVideo}
-        className="absolute top-4 right-4 z-10 inline-flex items-center gap-2 bg-white/90 hover:bg-white text-gray-800 text-xs font-medium px-3 py-2 rounded-lg shadow-sm transition-colors opacity-0 group-hover:opacity-100"
-      >
-        <RefreshCw className="h-3.5 w-3.5" />
-        Change
-      </button>
+      {/* Control overlay buttons: Change video & Safe Area Guides toggle */}
+      <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowSafeArea((v) => !v)}
+          data-testid="toggle-safe-area"
+          title="Toggle Instagram / Shorts Safe Area Guides"
+          className={`h-7 px-2.5 rounded-lg text-xs font-semibold backdrop-blur-md flex items-center gap-1.5 transition-colors ${
+            showSafeArea
+              ? "bg-red-500/90 text-white shadow-sm"
+              : "bg-black/60 hover:bg-black/80 text-white/90"
+          }`}
+        >
+          {showSafeArea ? "Hide Safe Area" : "Safe Area"}
+        </button>
+        {onChangeVideo && (
+          <button
+            type="button"
+            onClick={onChangeVideo}
+            data-testid="change-video-btn"
+            className="h-7 px-2.5 rounded-lg text-xs font-semibold bg-black/60 hover:bg-black/80 text-white/90 backdrop-blur-md flex items-center gap-1.5 transition-colors"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Change Clip
+          </button>
+        )}
+      </div>
     </div>
   );
 };

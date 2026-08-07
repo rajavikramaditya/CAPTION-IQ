@@ -17,12 +17,16 @@ EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 
 TAG_SYSTEM = (
     "You are a linguistic entity tagger for Hinglish (Roman Hindi) and English video captions. "
-    "Given a transcript, identify words that are Person names, Locations (cities, places, countries), "
-    "and Action verbs (words describing an action, e.g. shoot, gaya, banai, editing, khaya). "
-    "Return STRICT JSON only, no markdown, in the shape: "
-    '{"persons": ["..."], "locations": ["..."], "actions": ["..."]}. '
-    "Use the exact word tokens as they appear (without surrounding punctuation). "
-    "Be precise: only clear person names, clear places, and clear action verbs."
+    "Given a transcript, categorize tokens into 6 categories:\n"
+    "1. persons: Person names (e.g. Modi, Rahul, Elon)\n"
+    "2. locations: Cities, countries, places (e.g. Mumbai, India, office)\n"
+    "3. actions: Action verbs (e.g. shoot, gaya, banai, editing, khaya)\n"
+    "4. numbers: Numbers, money, percentages (e.g. 50k, 500, $, %, lakh, crore)\n"
+    "5. times: Time, dates, days (e.g. aaj, kal, monday, 5pm, morning)\n"
+    "6. emotions: Emotional hooks or viral CTAs (e.g. unbelievable, subscribe, secret, amazing, must)\n"
+    "Return STRICT JSON only, no markdown, in shape:\n"
+    '{"persons": [...], "locations": [...], "actions": [...], "numbers": [...], "times": [...], "emotions": [...]}. '
+    "Use exact word tokens as they appear."
 )
 
 
@@ -31,26 +35,30 @@ def _normalize(w: str) -> str:
 
 
 async def _tag_entities(transcript: str) -> dict:
+    empty = {"persons": set(), "locations": set(), "actions": set(), "numbers": set(), "times": set(), "emotions": set()}
     if not transcript.strip():
-        return {"persons": [], "locations": [], "actions": []}
+        return empty
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id="captioniq-tagger",
                    system_message=TAG_SYSTEM).with_model("openai", "gpt-5.4")
     try:
         raw = await chat.send_message(UserMessage(text=f"Transcript:\n{transcript}\n\nReturn the JSON now."))
     except Exception as e:
         logger.error(f"Entity tagging failed: {e}")
-        return {"persons": [], "locations": [], "actions": []}
+        return empty
     m = re.search(r"\{.*\}", raw.strip(), re.DOTALL)
     if not m:
-        return {"persons": [], "locations": [], "actions": []}
+        return empty
     try:
         data = json.loads(m.group(0))
     except Exception:
-        return {"persons": [], "locations": [], "actions": []}
+        return empty
     return {
         "persons": {_normalize(x) for x in data.get("persons", []) if isinstance(x, str)},
         "locations": {_normalize(x) for x in data.get("locations", []) if isinstance(x, str)},
         "actions": {_normalize(x) for x in data.get("actions", []) if isinstance(x, str)},
+        "numbers": {_normalize(x) for x in data.get("numbers", []) if isinstance(x, str)},
+        "times": {_normalize(x) for x in data.get("times", []) if isinstance(x, str)},
+        "emotions": {_normalize(x) for x in data.get("emotions", []) if isinstance(x, str)},
     }
 
 
@@ -64,6 +72,12 @@ def _classify(word: str, tags: dict):
         return "location"
     if n in tags["actions"]:
         return "action"
+    if n in tags["numbers"] or re.match(r"^\d", n):
+        return "number"
+    if n in tags["times"]:
+        return "time"
+    if n in tags["emotions"]:
+        return "emotion"
     return None
 
 

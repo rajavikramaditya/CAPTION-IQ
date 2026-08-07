@@ -57,8 +57,23 @@ export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSe
         ref={trackRef}
         onClick={handleTrackClick}
         data-testid="timeline-track"
-        className="relative h-9 bg-gray-100 rounded-lg cursor-pointer overflow-hidden border border-gray-200 group"
+        className="relative h-10 bg-gray-900 rounded-lg cursor-pointer overflow-hidden border border-gray-800 group shadow-inner"
       >
+        {/* Background Audio Waveform Peaks Canvas */}
+        <div className="absolute inset-0 flex items-center justify-between px-1 opacity-30 pointer-events-none">
+          {[...Array(60)].map((_, i) => {
+            const timeAtBar = (i / 60) * dur;
+            const inSpeech = segments.some((s) => timeAtBar >= s.start && timeAtBar <= s.end);
+            const h = inSpeech ? Math.max(20, (Math.sin(i * 0.8) * 0.5 + 0.5) * 80) : 10;
+            return (
+              <div
+                key={i}
+                style={{ height: `${h}%` }}
+                className={`w-0.5 rounded-full transition-all ${inSpeech ? "bg-orange-400" : "bg-gray-600"}`}
+              />
+            );
+          })}
+        </div>
         {/* Time Grid ticks (every 25%) */}
         {[25, 50, 75].map((pct) => (
           <div
