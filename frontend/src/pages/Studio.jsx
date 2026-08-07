@@ -355,7 +355,7 @@ export default function Studio() {
 
   const lines = useMemo(() => buildLines(result), [result]);
   const chunks = useMemo(
-    () => buildChunks(result?.words, { maxWords: settings?.maxWords ?? 4 }),
+    () => buildChunks(result?.words, { maxWords: settings?.maxWords ?? 7, maxGap: 0.8, maxDur: 3.5 }),
     [result, settings?.maxWords]
   );
 
@@ -598,12 +598,16 @@ export default function Studio() {
     toast.success(`Spellcheck fixed ${count} word${count !== 1 ? "s" : ""}! 🪄`);
   }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
 
-  const handleSeek = (t) => {
+  const handleSeek = useCallback((t) => {
     if (videoRef.current) {
       videoRef.current.currentTime = t;
       videoRef.current.play().catch(() => {});
     }
-  };
+  }, []);
+
+  const handleTimeUpdate = useCallback((e) => {
+    setCurrentTime(e.target.currentTime);
+  }, []);
 
   const handleExport = useCallback(async (format) => {
     if (!result) return;
@@ -705,7 +709,7 @@ export default function Studio() {
 
       {/* Export toolbar — only visible when captions exist */}
       {result && (
-        <div className="flex items-center justify-end gap-3 px-6 lg:px-8 py-2 bg-white border-b border-gray-100 flex-wrap">
+        <div className="flex items-center justify-end gap-2 px-4 py-1.5 bg-white border-b border-gray-100 flex-wrap">
           <span className="text-xs text-gray-400 mr-auto">Studio</span>
 
           {/* Undo / Redo */}
@@ -796,21 +800,22 @@ export default function Studio() {
         </div>
       )}
 
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-6 lg:p-8 flex-1 min-h-0">
-        <section className="lg:col-span-7 flex flex-col h-full gap-3 min-h-[320px]">
-          <div className="flex-1 bg-black rounded-2xl overflow-hidden relative shadow-lg group min-h-0">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-3 px-3 pb-3 pt-2 flex-1 min-h-0 overflow-hidden">
+        <section className="lg:col-span-8 flex flex-col h-full gap-2 min-h-[280px]">
+          <div className="flex-1 bg-zinc-950 rounded-xl overflow-hidden relative shadow-md min-h-0">
             <VideoStage
               videoUrl={videoUrl}
               videoRef={videoRef}
               words={previewWords}
               style={resolvedStyle}
-              onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+              onTimeUpdate={handleTimeUpdate}
               onChangeVideo={() => navigate("/dashboard")}
             />
           </div>
           {captionDoc?.segments?.length > 0 && (
             <TimelineBar
               segments={captionDoc.segments}
+              words={result?.words}
               currentTime={currentTime}
               duration={captionDoc.duration || videoRef.current?.duration || 0}
               onSeek={handleSeek}
@@ -826,7 +831,7 @@ export default function Studio() {
         </section>
 
         {/* Right Panel — Tabs: Transcript | AI Content */}
-        <div className="lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
+        <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
           {/* Tab Bar */}
           <div className="flex border-b border-gray-100 shrink-0">
             <button

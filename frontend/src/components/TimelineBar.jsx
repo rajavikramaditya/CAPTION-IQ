@@ -1,17 +1,20 @@
 /**
- * TimelineBar — Interactive caption segment timeline scrubber.
+ * TimelineBar — Interactive caption timeline with segment + word-level tracks.
  *
- * Displays caption segments as visual blocks along the video duration timeline.
- * Highlights current playing segment and renders a red playhead indicator.
- * Clicking anywhere seeks the video.
- *
- * Props:
- *   segments    — list of CaptionSegment objects { id, start, end, text, word_ids }
- *   currentTime — current video playback time in seconds
- *   duration    — total video duration in seconds
- *   onSeek      — callback(timeInSeconds)
+ * - Segment track: click/drag segments to seek and adjust timing
+ * - Word track: shows individual word timing blocks colored by entity type
+ * - Red playhead + waveform visualization
  */
 import { useRef } from "react";
+
+const ENTITY_COLORS = {
+  person:   "#FACC15",
+  location: "#60A5FA",
+  action:   "#4ADE80",
+  number:   "#C084FC",
+  time:     "#22D3EE",
+  emotion:  "#F472B6",
+};
 
 function fmtTime(s) {
   if (!s || isNaN(s)) return "0:00";
@@ -20,7 +23,7 @@ function fmtTime(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSeek, onSegmentTimingChange }) {
+export function TimelineBar({ segments = [], words = [], currentTime = 0, duration = 0, onSeek, onSegmentTimingChange }) {
   const trackRef = useRef(null);
 
   const dur = Math.max(duration || 0, segments.reduce((max, s) => Math.max(max, s.end || 0), 0), 1);
@@ -37,7 +40,7 @@ export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSe
   return (
     <div
       data-testid="timeline-bar"
-      className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 select-none flex flex-col gap-2 shrink-0"
+      className="bg-white rounded-xl border border-gray-200 shadow-sm px-3 py-2 select-none flex flex-col gap-1.5 shrink-0"
     >
       {/* Header bar: Time readouts & label */}
       <div className="flex items-center justify-between text-xs text-gray-500 font-medium px-1">
@@ -57,7 +60,7 @@ export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSe
         ref={trackRef}
         onClick={handleTrackClick}
         data-testid="timeline-track"
-        className="relative h-10 bg-gray-900 rounded-lg cursor-pointer overflow-hidden border border-gray-800 group shadow-inner"
+        className="relative h-8 bg-gray-900 rounded-lg cursor-pointer overflow-hidden border border-gray-800 group shadow-inner"
       >
         {/* Background Audio Waveform Peaks Canvas */}
         <div className="absolute inset-0 flex items-center justify-between px-1 opacity-30 pointer-events-none">
@@ -171,6 +174,40 @@ export function TimelineBar({ segments = [], currentTime = 0, duration = 0, onSe
           <div className="absolute -top-1 -left-[5px] w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-red-600" />
         </div>
       </div>
+
+      {/* Word-level micro track */}
+      {words && words.length > 0 && (
+        <div
+          className="relative h-4 w-full"
+          data-testid="word-track"
+          title="Word timing track — click a word to seek"
+        >
+          {words.map((w, i) => {
+            if (w.start == null || w.end == null) return null;
+            const leftPct = Math.min(100, Math.max(0, (w.start / dur) * 100));
+            const widthPct = Math.max(0.4, Math.min(100 - leftPct, ((w.end - w.start) / dur) * 100));
+            const isActive = currentTime >= w.start && currentTime < w.end;
+            const entityColor = w.entity_type ? ENTITY_COLORS[w.entity_type] : null;
+            return (
+              <div
+                key={w.word_id || i}
+                style={{
+                  position: "absolute",
+                  left: `${leftPct}%`,
+                  width: `${widthPct}%`,
+                  top: 2, bottom: 2,
+                  backgroundColor: isActive ? "#FA5D29" : (entityColor || "rgba(255,255,255,0.15)"),
+                  borderRadius: "2px",
+                  transition: "background-color 80ms ease",
+                  cursor: "pointer",
+                }}
+                onClick={() => onSeek?.(w.start)}
+                title={`${w.text} ${fmtTime(w.start)}-${fmtTime(w.end)}${w.entity_type ? ` [${w.entity_type}]` : ""}`}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

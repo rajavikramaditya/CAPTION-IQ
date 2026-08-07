@@ -84,11 +84,11 @@ export const CaptionEditor = ({
       className="flex flex-col h-full"
     >
       {/* Header row */}
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#FA5D29]" />
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#FA5D29]" />
           <h2
-            className="text-lg font-semibold tracking-tight text-gray-900"
+            className="text-base font-semibold tracking-tight text-gray-900"
             style={{ fontFamily: "Outfit, sans-serif" }}
           >
             Transcript
@@ -152,7 +152,7 @@ export const CaptionEditor = ({
 
       <div
         data-testid="caption-list"
-        className="flex-1 overflow-y-auto space-y-4 pr-2 mt-4 text-lg leading-relaxed text-gray-700 custom-scrollbar"
+        className="flex-1 overflow-y-auto space-y-3 pr-2 mt-3 text-base leading-relaxed text-gray-700 custom-scrollbar"
       >
         {!hasCaptions && !loading && (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-10 gap-3">
