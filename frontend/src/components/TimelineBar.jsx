@@ -190,7 +190,7 @@ export function TimelineBar({ segments = [], words = [], currentTime = 0, durati
             const entityColor = w.entity_type ? ENTITY_COLORS[w.entity_type] : null;
             return (
               <div
-                key={w.word_id || i}
+                key={w.id || i}
                 style={{
                   position: "absolute",
                   left: `${leftPct}%`,

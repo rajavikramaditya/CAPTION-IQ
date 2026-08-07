@@ -1,65 +1,131 @@
-# CaptionIQ — Product Requirements Doc
+# CaptionIQ — Product Requirements Document
 
 ## Original Problem Statement
-Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: upload a video, auto-generate captions via AI transcription, live caption preview, and the core innovation — Semantic Highlighting (person=yellow, location=blue, action/verb=green). Hinglish (Roman Hindi) focus. MVP only — no auth, payments, SEO, export, timeline editing, analytics, or advanced AI styling.
+Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: upload a video, auto-generate captions via AI transcription (Whisper), live caption preview, and the core innovation — Semantic Highlighting (person=yellow, location=blue, action=green). Hinglish (Roman Hindi) focus. Later evolved into a full professional editor matching Kalakar.io-level feature parity.
+
+---
+
+## User Personas
+- **Primary**: Indian content creators (YouTube, Reels, Shorts) making Hinglish/Hindi content
+- **Secondary**: English-language creators wanting professional word-by-word caption styling
+
+---
 
 ## User Choices
 - Transcription: Real OpenAI Whisper (whisper-1) via Emergent Universal Key
-- Video: in-browser preview only (no storage)
-- Entity tagging: AI-powered (gpt-5.4)
-- UI theme: light & clean
+- Video: stored in Emergent object storage (local fallback if unavailable)
+- Entity tagging: gpt-5.4 with rule-based fallback
+- UI theme: light & clean, CaptionIQ orange (#FA5D29) accent
+- Auth: JWT email/password + Emergent-managed Google OAuth
+
+---
 
 ## Architecture
-- Backend: FastAPI. `POST /api/transcribe` (multipart `file`) -> OpenAISpeechToText whisper-1 (verbose_json, word+segment timestamps) -> LlmChat gpt-5.4 tags persons/locations/actions -> returns `{text, words[{text,start,end,entity_type}], segments}`. Files handled in a temp file and deleted (not persisted). 25MB guard -> 413.
-- Frontend: React single-page Studio. `Studio.jsx` orchestrates state; `VideoUploader`, `VideoStage` (video + live caption overlay), `CaptionEditor` (legend + transcript + generate button), `SemanticWord`, `Header`. `buildLines` groups words by segments; active word/line derived from video `currentTime`. Sample Hinglish demo in `lib/mockData.js`.
-- Integrations: emergentintegrations, EMERGENT_LLM_KEY in backend/.env.
+### Backend (FastAPI + Motor + MongoDB)
+- `server.py` — app entrypoint, router mounts
+- `auth.py` — JWT register/login/me/refresh/forgot-reset, brute-force lockout, Google OAuth session exchange
+- `projects.py` — CRUD projects, `POST /transcribe`, `PUT /caption`, `POST /translate`, `POST /script`, `GET /export`, `POST /render`
+- `transcription.py` — Whisper (emergentintegrations) + gpt-5.4 entity tagging + rule-based fallback. NO hardcoded demo data.
+- `export_helper.py` — SRT/VTT/ASS/TXT/CSV/JSON generators using `_build_chunks()` to match frontend display
+- `models.py` — CaptionDocument, CaptionWord, CaptionSegment, Project, User Pydantic models
+- `storage.py` — Emergent object storage with local fallback
+- `diarization.py` — Speaker assignment (assign_speakers)
+- `render.py` — Video burn-in rendering (ffmpeg)
 
-## Implemented (2026-06)
-### v0 — Studio MVP
+### Frontend (React + Tailwind + Shadcn/UI)
+- `pages/Studio.jsx` — Main editor: layout state, RAF timing, undo/redo history, word CRUD, chunk/line derivation, export
+- `components/VideoStage.jsx` — Video preview with 60fps RAF timing, overlay rect tracking, portrait/landscape containers
+- `components/CaptionRenderer.jsx` — Professional multi-line caption renderer (up to 2 balanced lines, semantic highlights, word animations, chunk entrance)
+- `components/CaptionEditor.jsx` — Transcript panel with SemanticWord-based word editor
+- `components/SemanticWord.jsx` — Single word: semantic badge, active state, double-click → WordEditPopover
+- `components/WordEditPopover.jsx` — Inline edit: text, start/end timing, entity tag, split, delete
+- `components/TimelineBar.jsx` — Segment track + word micro-track with drag handles
+- `components/TemplateBar.jsx` — Template switcher + position/size/uppercase/box/animation controls
+- `lib/templates.js` — 16 professional templates: Minimal, Modern, Podcast, News, Finance, Cinematic, Shorts, Gaming, Education, Bold Impact, Hype, Mr Beast, Hormozi, Ali Abdaal, Motivation, Luxury
+- `hooks/useCaptionHistory.js` — Undo/redo stack
+- `hooks/useKeyboardShortcuts.js` — Ctrl+Z/Ctrl+Shift+Z/Ctrl+F shortcuts
+
+---
+
+## What's Been Implemented
+
+### v0 — Studio MVP (2026-06)
 - Real Whisper transcription + AI entity tagging (verified end-to-end)
 - Live caption preview overlay synced to video time
-- Semantic Highlighting (yellow/blue/green) in transcript + overlay
-- Active-word tracking, click-line-to-seek, auto-scroll
+- Semantic Highlighting in transcript + overlay
 - "Try demo" sample Hinglish flow
-- Light/clean UI per design guidelines; all interactive elements have data-testid
 
-### v1 — Foundation (M-CORE + M-INGEST) ✅
+### v1 — Foundation (2026-07)
 - Backend refactored into modules: models, database, storage, auth, transcription, projects, server
-- **Frozen Caption Document schema** (words/segments/style/word_count/duration) — source of truth for preview + future render
-- Auth: JWT email/password (register/login/me/logout/refresh/forgot/reset, bcrypt, brute-force lockout keyed on X-Forwarded-For) + Emergent Google OAuth (session exchange); unified resolver accepts cookie or Bearer
-- Projects: create/list/get/delete with ownership isolation; caption persistence (transcribe writes caption_document; PUT /caption saves edits)
-- Media ingestion: upload to Emergent object storage, DB-backed media records, streaming endpoint with HTTP Range (206)
-- jobs + usage_events collections (M-OPS/M-BILL groundwork; transcription creates a job + usage event)
-- Frontend: AuthContext, Login/Signup, Google login, ProtectedRoute, Dashboard (projects grid + new-project upload), Studio refactored to project-backed (reuses existing VideoStage/CaptionEditor unchanged)
-- Verified: testing agent frontend journey 100%; backend 13/13 after brute-force lockout fix
+- Frozen CaptionDocument schema (words/segments/style/word_count/duration) — source of truth
+- JWT auth (register/login/me/logout/refresh/forgot/reset, bcrypt, brute-force lockout)
+- Emergent Google OAuth integration
+- Projects: create/list/get/delete with ownership isolation; caption persistence
+- Media ingestion: upload to Emergent object storage, streaming with HTTP Range (206)
+- Frontend: AuthContext, Login/Signup, Google login, ProtectedRoute, Dashboard
+- Verified: testing agent 100% (iteration_5)
 
-### v3 — Caption Template & Rendering Engine (frontend-only) ✅
-- Professional word-by-word `CaptionRenderer` (replaces old simple overlay), memoized, layout-stable, CSS-transition active word
-- 11 templates (`lib/templates.js`): Minimal, Modern, Podcast, News, Finance, Cinematic, Shorts, Gaming, Education, Bold Impact, Hype — each with font/weight/stroke/shadow/box/rounded/word+line spacing/uppercase/position/safe-margin + active {scale,color,bg}
-- `TemplateBar`: instant template switch + position/size/uppercase/box controls (no re-transcription; transcript unchanged)
-- Overlay uses short ~4-word display chunks (`buildChunks`) independent of Whisper segments, so captions never cover the video
-- Style persisted per project in localStorage (lazy useState init, StrictMode-safe)
-- No backend/API/auth/storage changes
-- Verified: testing agent 100% (iteration_4) — fixed reported bugs (whole-transcript overlay; template visuals) + persistence race
+### v3 — Caption Template & Rendering Engine (2026-07)
+- Professional word-by-word CaptionRenderer with multi-line balancing
+- 11 → 16 templates (Minimal, Modern, Podcast, News, Finance, Cinematic, Shorts, Gaming, Education, Bold Impact, Hype, Mr Beast, Hormozi, Ali Abdaal, Motivation, Luxury)
+- TemplateBar: instant template switch + position/size/uppercase/box/animation controls
+- Overlay uses short ~4-7 word display chunks (buildChunks) independent of Whisper segments
+- Style persisted per project in localStorage + MongoDB
 
-## Backlog
-- v2: Multi-language STT + productionized semantic layer + async job status
-- P2: SRT/VTT export, custom entity categories, Devanagari/Roman toggle
-- Cursor/infra: audio extraction (ffmpeg) to support >25MB clips; range streaming from storage without loading full bytes
+### v4 — Studio Professional Overhaul (2026-08)
+- **CRITICAL BUG FIX**: Removed hardcoded "Modi visited Mumbai..." fallback from `transcription.py`. Backend now raises RuntimeError properly when Whisper fails.
+- **API KEY FIX**: Updated EMERGENT_LLM_KEY in `backend/.env` to real key (`sk-emergent-5034c46676d552e91F`)
+- Manual Portrait (9:16) / Landscape (16:9) preview mode toggle — persisted per project
+- 60fps `requestAnimationFrame` timing sync in `VideoStage.jsx` for smooth word highlighting
+- `docToResult` now includes `speaker_id` and `confidence` for diarization display
+- Fixed `TimelineBar` word keys: `w.word_id` → `w.id` (correct property name)
+- Fixed `CaptionRenderer` chunkKey: `w.word_id` → `w.id`
+- `export_helper.py` uses `_build_chunks()` to produce SRT/VTT timing that matches UI display
+- Word-level editing: double-click any word → popover for text, timing, entity tag, split, delete
+- Segment merge: hover segment → "Merge ↓" button
+- Timeline drag handles for adjusting segment start/end times
+- Undo/redo history with keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z)
+- Search & Replace panel (Ctrl+F)
+- Language selector (14 languages) + Translate + Script switch (Roman ↔ Devanagari)
+- Remove Fillers, Spellcheck & Fix toolbar buttons
+- Custom vocabulary input for Whisper accuracy boost
+- Video burn-in render with progress polling and codec selection (H.264/H.265)
+- Export formats: SRT, VTT, ASS, JSON, CSV, TXT, Alpha MOV
+- Safe Area toggle overlay
+- Onboarding tour, Font uploader
 
-## Next Tasks
-- Gather user feedback on transcription accuracy for real Hinglish clips
+---
 
-## Bugfixes (2026-08-07)
-- Fixed `VideoStage.jsx` critical syntax error: duplicate `videoW`/`videoH` declarations broke video preview
-- Fixed `TemplateBar.jsx`: missing `toast` import from `sonner`
-- Fixed `projects.py`: missing `timedelta` import
-- Fixed `Dashboard.jsx`: missing `Copy` icon from lucide-react (crashed ProjectCard render)
-- Verified: Studio loads real backend transcripts, no demo/mock data — 10/10 frontend tests pass (iteration_5)
-- Test video upload + transcription flow end-to-end next
+## Key API Endpoints
+- `POST /api/auth/register` — create account
+- `POST /api/auth/login` — login (returns JWT)
+- `GET /api/projects` — list projects
+- `POST /api/projects` — create project
+- `POST /api/projects/{id}/transcribe` — Whisper transcription
+- `PUT /api/projects/{id}/caption` — save caption doc edits
+- `GET /api/projects/{id}/export?format=srt|vtt|ass|json|csv|txt` — export subtitles
+- `POST /api/projects/{id}/render` — video burn-in render
+- `GET /api/projects/{id}/render/status/{job_id}` — poll render progress
+- `POST /api/projects/{id}/translate` — translate captions
+- `POST /api/projects/{id}/script` — roman↔devanagari switch
 
-## Critical Bug Fixes (2026-08-07 Session 2)
-- BUG #1 FIXED: Removed previewWords currentTime<=0 fallback that showed chunk[0] captions before play (appeared as "demo" data)
-- BUG #2 FIXED: Replaced auto-detection with manual Portrait 9:16 / Landscape 16:9 mode toggle. Portrait: 4/12 video col, portrait video fills height, template bar in right panel. Landscape: 8/12 video col, full width.
-- BUG #3 FIXED: Layout respects mode — portrait video no longer shows in 960px wide container (566px black bars each side)
-- Verified: 0 caption spans before play, empty state shown for no-transcript projects, captions only appear during active playback
+---
+
+## Backlog (P0 → P2)
+
+### P1 — Upcoming
+- End-to-end Studio creator workflow testing (word edit, split, merge, export)
+- Caption position controls: drag-to-reposition within the video overlay
+
+### P2 — Future
+- Custom stroke, shadow, background style overrides beyond the 16 presets
+- Multi-language STT + productionized semantic layer + async job queue
+- Audio extraction (ffmpeg) to support >25MB clips
+- Devanagari/Roman toggle live in preview
+
+---
+
+## Environment
+- Backend: FastAPI on 0.0.0.0:8001, MongoDB via MONGO_URL
+- Frontend: React on port 3000, `REACT_APP_BACKEND_URL` for API calls
+- Key: `EMERGENT_LLM_KEY` in `backend/.env` (real key, not dummy)

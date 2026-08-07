@@ -42,6 +42,8 @@ function docToResult(doc) {
     start: w.start,
     end: w.end,
     entity_type: w.entity_type || null,
+    speaker_id: w.speaker_id || null,
+    confidence: w.confidence ?? null,
   }));
   const segments = (doc.segments || []).map((s) => ({
     id: s.id,

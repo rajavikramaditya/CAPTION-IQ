@@ -228,7 +228,7 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
   const displayLines = splitLines(words, maxPerLine);
 
   // Derive a stable chunk key from the word IDs — changes when chunk changes to trigger entrance animation
-  const chunkKey = words.map((w) => w.word_id || w.text).join("_");
+  const chunkKey = words.map((w) => w.id || w.text).join("_");
 
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none" data-testid="caption-renderer">
