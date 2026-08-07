@@ -66,6 +66,7 @@ export const CaptionEditor = ({
   onTranslate,
   onRemoveFillers,
   onSwitchScript,
+  onSpellcheck,
 }) => {
   const activeRef = useRef(null);
   const hasCaptions = lines && lines.length > 0;
@@ -110,6 +111,19 @@ export const CaptionEditor = ({
               </button>
             )}
 
+            {/* Spellcheck & Fix Button */}
+            {onSpellcheck && (
+              <button
+                type="button"
+                onClick={onSpellcheck}
+                data-testid="spellcheck-btn"
+                title="Auto-correct typos and elongated words (e.g. goooood → good)"
+                className="text-xs font-semibold px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors flex items-center gap-1"
+              >
+                <span>Spellcheck & Fix</span>
+              </button>
+            )}
+
             {/* Script Switcher */}
             {onSwitchScript && (
               <button
@@ -141,13 +155,37 @@ export const CaptionEditor = ({
         className="flex-1 overflow-y-auto space-y-4 pr-2 mt-4 text-lg leading-relaxed text-gray-700 custom-scrollbar"
       >
         {!hasCaptions && !loading && (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-10">
-            <FileText className="h-10 w-10 mb-3 text-gray-300" />
-            <p className="text-base font-medium text-gray-500">No captions yet</p>
-            <p className="text-sm mt-1 max-w-xs">
-              Upload a clip and hit generate — names, places and actions will
-              light up automatically.
-            </p>
+          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-10 gap-3">
+            <FileText className="h-10 w-10 text-gray-300" />
+            <div>
+              <p className="text-base font-medium text-gray-700">No captions generated yet</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-xs">
+                Upload a clip and hit generate — names, places and actions will light up automatically.
+              </p>
+            </div>
+
+            {/* Custom Vocabulary / Brand Terms Input */}
+            {hasVideo && onTranscribe && (
+              <div className="w-full max-w-xs mt-2 text-left bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+                <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-[#FA5D29]" />
+                  Custom Vocabulary / Brand Terms
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. CaptionIQ, Vikas, Deepmind, Hinglish"
+                  data-testid="custom-vocabulary-input"
+                  onBlur={(e) => {
+                    const val = e.target.value.trim();
+                    if (val) localStorage.setItem("captioniq:custom_vocab", val);
+                  }}
+                  className="w-full text-xs px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+                <p className="text-[10px] text-gray-400">
+                  Add niche names or slang to boost Whisper recognition accuracy.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

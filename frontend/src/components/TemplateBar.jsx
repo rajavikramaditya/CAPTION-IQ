@@ -221,39 +221,52 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
               </Seg>
             </div>
 
-            {/* Smart Category Filter Toggles */}
+            {/* Smart Category Filter Toggles & Custom Palette Pickers */}
             {eff.semanticHighlight && (
               <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-gray-200/60" data-testid="category-toggles">
                 <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Highlight:</span>
                 {[
-                  { type: "person",   label: "Persons 🟡",  color: "border-yellow-400 text-yellow-800 bg-yellow-50" },
-                  { type: "action",   label: "Actions 🟢",  color: "border-green-400 text-green-800 bg-green-50" },
-                  { type: "location", label: "Places 🔵",   color: "border-blue-400 text-blue-800 bg-blue-50" },
-                  { type: "number",   label: "Numbers 🟣",  color: "border-purple-400 text-purple-800 bg-purple-50" },
-                  { type: "time",     label: "Time 🌐",     color: "border-cyan-400 text-cyan-800 bg-cyan-50" },
-                  { type: "emotion",  label: "Emotions 💖", color: "border-pink-400 text-pink-800 bg-pink-50" },
-                ].map(({ type, label, color }) => {
+                  { type: "person",   label: "Persons 🟡",  defaultColor: "#facc15" },
+                  { type: "action",   label: "Actions 🟢",  defaultColor: "#4ade80" },
+                  { type: "location", label: "Places 🔵",   defaultColor: "#60a5fa" },
+                  { type: "number",   label: "Numbers 🟣",  defaultColor: "#c084fc" },
+                  { type: "time",     label: "Time 🌐",     defaultColor: "#22d3ee" },
+                  { type: "emotion",  label: "Emotions 💖", defaultColor: "#f472b6" },
+                ].map(({ type, label, defaultColor }) => {
                   const enabledList = settings?.enabledCategories ?? ["person", "action", "location", "number", "time", "emotion"];
                   const isChecked = enabledList.includes(type);
+                  const customColor = settings?.categoryColors?.[type] || defaultColor;
+
                   return (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        const next = isChecked
-                          ? enabledList.filter((c) => c !== type)
-                          : [...enabledList, type];
-                        onSettingsChange({ enabledCategories: next });
-                      }}
-                      data-testid={`toggle-category-${type}`}
-                      className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
-                        isChecked
-                          ? `${color} font-bold shadow-xs scale-[1.02]`
-                          : "border-gray-200 text-gray-400 bg-white opacity-60 hover:opacity-100"
-                      }`}
-                    >
-                      {label}
-                    </button>
+                    <div key={type} className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = isChecked
+                            ? enabledList.filter((c) => c !== type)
+                            : [...enabledList, type];
+                          onSettingsChange({ enabledCategories: next });
+                        }}
+                        className={`text-[11px] font-semibold flex items-center gap-1 ${
+                          isChecked ? "text-gray-900" : "text-gray-400 line-through"
+                        }`}
+                      >
+                        <CheckCircle2 className={`h-3 w-3 ${isChecked ? "text-[#FA5D29]" : "text-gray-300"}`} />
+                        {label}
+                      </button>
+
+                      {/* Category Color Picker */}
+                      <input
+                        type="color"
+                        value={customColor}
+                        onChange={(e) => {
+                          const categoryColors = { ...(settings?.categoryColors || {}), [type]: e.target.value };
+                          onSettingsChange({ categoryColors });
+                        }}
+                        title={`Customize ${label} highlight color`}
+                        className="h-4 w-4 rounded cursor-pointer border-0 bg-transparent p-0"
+                      />
+                    </div>
                   );
                 })}
               </div>

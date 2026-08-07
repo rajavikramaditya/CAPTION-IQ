@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Film, Trash2, Loader2, Clock, Type, Sparkles,
-  Search, SortDesc, Pencil, CheckCircle2, X,
+  Search, SortDesc, Pencil, CheckCircle2, X, Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -134,11 +134,21 @@ function ProjectCard({ project, onDelete, onRename, onClick }) {
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-transparent" />
 
         {/* Status badge */}
-        <span
-          className={`absolute top-3 left-3 text-xs font-semibold px-2 py-1 rounded-lg capitalize ${STATUS_STYLES[project.status] || STATUS_STYLES.draft}`}
-        >
-          {project.status}
-        </span>
+        <div className="absolute top-3 left-3 flex items-center gap-1">
+          <span
+            className={`text-xs font-semibold px-2 py-1 rounded-lg capitalize ${STATUS_STYLES[project.status] || STATUS_STYLES.draft}`}
+          >
+            {project.status}
+          </span>
+          {project.auto_delete_24h && (
+            <span
+              title="24-Hour Auto-Delete Privacy Enabled"
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-white flex items-center gap-0.5"
+            >
+              <Shield className="h-3 w-3" /> 24h Purge
+            </span>
+          )}
+        </div>
 
         {/* Action buttons — visible on hover */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">

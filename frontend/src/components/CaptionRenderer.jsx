@@ -97,6 +97,9 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
   const getWordColor = (w, active) => {
     if (active) {
       if (isCategoryEnabled(w.entity_type)) {
+        if (style.categoryColors?.[w.entity_type]) {
+          return style.categoryColors[w.entity_type];
+        }
         if (w.entity_type === "person")   return "#FACC15"; // Bright Yellow
         if (w.entity_type === "location") return "#60A5FA"; // Bright Blue
         if (w.entity_type === "action")   return "#4ADE80"; // Bright Green

@@ -85,7 +85,7 @@ def _gv(obj, key, default=None):
     return obj.get(key, default) if isinstance(obj, dict) else getattr(obj, key, default)
 
 
-async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish") -> CaptionDocument:
+async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish", custom_prompt: str = None) -> CaptionDocument:
     if len(data) > 25 * 1024 * 1024:
         raise ValueError("File exceeds 25MB transcription limit.")
 
@@ -107,6 +107,7 @@ async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish
         "nepali":    {"code": "ne",  "prompt": "Nepali video caption."},
     }
     lang_cfg = LANG_MAP.get(language, LANG_MAP["hinglish"])
+    final_prompt = f"{lang_cfg['prompt']} Key terms: {custom_prompt}" if custom_prompt else lang_cfg["prompt"]
 
     suffix = Path(filename or "clip.mp4").suffix or ".mp4"
     tmp_path = None
@@ -118,7 +119,7 @@ async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish
         with open(tmp_path, "rb") as audio_file:
             transcribe_kwargs = dict(
                 file=audio_file, model="whisper-1", response_format="verbose_json",
-                prompt=lang_cfg["prompt"],
+                prompt=final_prompt,
                 temperature=0.0, timestamp_granularities=["segment", "word"],
             )
             if lang_cfg["code"]:

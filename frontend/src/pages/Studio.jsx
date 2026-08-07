@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Loader2, Download, FileText, Captions, FileCode2, AlignLeft, Sparkles, ScrollText, Film, AlertTriangle, CheckCircle2, Undo2, Redo2, Search } from "lucide-react";
 import { toast } from "sonner";
+import { FontUploader } from "@/components/FontUploader";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppHeader } from "@/components/AppHeader";
 import { VideoStage } from "@/components/VideoStage";
 import { CaptionEditor } from "@/components/CaptionEditor";
@@ -473,6 +475,9 @@ export default function Studio() {
       const params = new URLSearchParams();
       if (denoise) params.append("denoise", "true");
       params.append("language", language);
+      const customVocab = localStorage.getItem("captioniq:custom_vocab");
+      if (customVocab) params.append("custom_prompt", customVocab);
+
       const { data } = await api.post(`/projects/${projectId}/transcribe?${params.toString()}`);
       if (!data.words?.length) {
         toast.error("No speech detected in this clip.");
@@ -552,6 +557,45 @@ export default function Studio() {
     setResult(docToResult(updated));
     handleSaveCaptionDoc(updated);
     toast.success(`Removed ${count} filler word${count !== 1 ? "s" : ""}! 🧹`);
+  }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
+
+  const handleSpellcheck = useCallback(() => {
+    if (!captionDoc) return;
+    let count = 0;
+    const TYPO_MAP = { "teh": "the", "receive": "receive", "manta": "maanta", "karna": "karna" };
+    const words = captionDoc.words.map((w) => {
+      let text = w.text;
+      // Collapse 3+ repeated characters (e.g. goooood -> good)
+      const collapsed = text.replace(/(.)\1{2,}/g, "$1$1");
+      if (collapsed !== text) { text = collapsed; count++; }
+      const cleanLower = text.toLowerCase();
+      if (TYPO_MAP[cleanLower]) {
+        text = TYPO_MAP[cleanLower];
+        count++;
+      }
+      return { ...w, text };
+    });
+
+    if (count === 0) {
+      toast.info("No spellcheck issues found! ✨");
+      return;
+    }
+
+    pushHistory(captionDoc);
+    const wordById = Object.fromEntries(words.map((w) => [w.id, w]));
+    const segments = captionDoc.segments.map((seg) => {
+      const segWords = seg.word_ids.map((id) => wordById[id]).filter(Boolean);
+      return {
+        ...seg,
+        text: segWords.map((w) => w.text).join(" "),
+      };
+    });
+
+    const updated = { ...captionDoc, words, segments };
+    setCaptionDoc(updated);
+    setResult(docToResult(updated));
+    handleSaveCaptionDoc(updated);
+    toast.success(`Spellcheck fixed ${count} word${count !== 1 ? "s" : ""}! 🪄`);
   }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
 
   const handleSeek = (t) => {
@@ -838,6 +882,7 @@ export default function Studio() {
                 onTranslate={handleTranslate}
                 onRemoveFillers={handleRemoveFillers}
                 onSwitchScript={handleSwitchScript}
+                onSpellcheck={handleSpellcheck}
               />
             ) : (
               <ContentPanel
@@ -924,6 +969,8 @@ export default function Studio() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <OnboardingTour />
     </div>
   );
-}
+};

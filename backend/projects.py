@@ -165,6 +165,7 @@ async def transcribe_project(
     project_id: str,
     denoise: bool = Query(False, description="Run audio denoising before transcription"),
     language: str = Query("hinglish", description="Language slug: hinglish | hindi | english | urdu | tamil ..."),
+    custom_prompt: Optional[str] = Query(None, description="Custom brand terms / vocabulary prompting"),
     user: dict = Depends(get_current_user),
 ):
     project = await _owned_project(project_id, user)
@@ -196,7 +197,7 @@ async def transcribe_project(
             await db.projects.update_one({"project_id": project_id},
                                          {"$set": {"status": "transcribing", "updated_at": now_dt()}})
 
-        doc = await transcribe_bytes(data, media.get("original_filename") or "clip.mp4", language=language)
+        doc = await transcribe_bytes(data, media.get("original_filename") or "clip.mp4", language=language, custom_prompt=custom_prompt)
     except ValueError as e:
         await _fail_job(job_id, project_id, str(e))
         raise HTTPException(status_code=413, detail=str(e))
@@ -493,3 +494,21 @@ async def switch_script(
     )
 
     return new_doc.model_dump()
+
+
+@router.post("/{project_id}/privacy")
+async def toggle_privacy(
+    project_id: str,
+    auto_delete_24h: bool = Query(True, description="Enable 24h media auto-delete privacy mode"),
+    user: dict = Depends(get_current_user),
+):
+    """Toggle 24-hour auto-delete privacy mode for sensitive media."""
+    project = await _owned_project(project_id, user)
+    delete_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat() if auto_delete_24h else None
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"auto_delete_24h": auto_delete_24h, "auto_delete_at": delete_at, "updated_at": now_dt()}}
+    )
+
+    return {"project_id": project_id, "auto_delete_24h": auto_delete_24h, "auto_delete_at": delete_at}
