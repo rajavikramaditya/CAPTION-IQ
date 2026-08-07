@@ -57,17 +57,22 @@ async def _tag_entities(transcript: str) -> dict:
         logger.warning(f"Remote entity tagging failed, using rule-based fallback: {e}")
 
     lower_t = transcript.lower()
-    persons = {"modi"} if "modi" in lower_t else set()
-    locations = {"mumbai"} if "mumbai" in lower_t else set()
-    actions = {"told", "watch"} if "told" in lower_t or "watch" in lower_t else set()
-    emotions = {"subscribe", "amazing"} if "subscribe" in lower_t or "amazing" in lower_t else set()
+    # Generic rule-based fallback — works for any content, no hardcoded words
+    words_in_text = set(re.sub(r"[^a-z0-9\s]", "", lower_t).split())
+    # Detect capitalized words as likely proper nouns (persons or locations)
+    proper_nouns = {_normalize(w) for w in transcript.split() if w and w[0].isupper() and len(w) > 2}
+    # Simple action verb heuristic (common English/Hinglish verbs)
+    action_verbs = {"visited", "told", "watch", "subscribe", "see", "said", "went", "gaya",
+                    "kiya", "kar", "shoot", "banai", "banao", "dekho", "sunao", "share"}
+    emotion_words = {"subscribe", "amazing", "unbelievable", "viral", "secret", "must",
+                     "shocking", "incredible", "wow", "best", "top", "new", "free"}
     return {
-        "persons": persons,
-        "locations": locations,
-        "actions": actions,
-        "numbers": set(),
-        "times": set(),
-        "emotions": emotions,
+        "persons":   set(),  # Can't reliably distinguish persons from locations in rule-based
+        "locations":  set(),  # without an external NER model
+        "actions":   words_in_text & action_verbs,
+        "numbers":   set(),
+        "times":     set(),
+        "emotions":  words_in_text & emotion_words,
     }
 
 
@@ -139,17 +144,11 @@ async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish
         raw_segments = getattr(resp, "segments", None) or []
         language_detected = getattr(resp, "language", None)
     except Exception as e:
-        logger.warning(f"Remote transcription failed, using intelligent simulation fallback: {e}")
-        full_text = "Modi visited Mumbai today and told everyone to subscribe and watch this amazing video."
-        words_list = full_text.split()
-        raw_words = []
-        t = 0.0
-        for w in words_list:
-            end_t = t + 0.4
-            raw_words.append({"word": w, "start": t, "end": end_t})
-            t = end_t
-        raw_segments = [{"start": 0.0, "end": t, "text": full_text}]
-        language_detected = language
+        logger.error(f"Whisper transcription failed: {e}")
+        raise RuntimeError(
+            f"Transcription failed: {e}. "
+            "Please check that the audio/video file is valid and try again."
+        )
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
