@@ -49,3 +49,11 @@ Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: uplo
 
 ## Next Tasks
 - Gather user feedback on transcription accuracy for real Hinglish clips
+
+## Bugfixes (2026-08-07)
+- Fixed `VideoStage.jsx` critical syntax error: duplicate `videoW`/`videoH` declarations broke video preview
+- Fixed `TemplateBar.jsx`: missing `toast` import from `sonner`
+- Fixed `projects.py`: missing `timedelta` import
+- Fixed `Dashboard.jsx`: missing `Copy` icon from lucide-react (crashed ProjectCard render)
+- Verified: Studio loads real backend transcripts, no demo/mock data — 10/10 frontend tests pass (iteration_5)
+- Test video upload + transcription flow end-to-end next
