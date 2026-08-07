@@ -29,18 +29,27 @@ export const SemanticWord = ({
   onWordUpdate,
   onWordDelete,
   onSegmentSplit,
+  // seek prop
+  onSeek,
 }) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const isEntity = Boolean(entityType);
   const isEditable = Boolean(wordId && onWordUpdate);
   const isLowConfidence = confidence !== null && confidence !== undefined && confidence < 0.65;
 
+  const handleClick = (e) => {
+    e.stopPropagation(); // Don't let parent line's onClick fire
+    e.preventDefault();  // Prevent Radix PopoverTrigger from opening on single-click
+    if (onSeek && start != null) onSeek(start);
+  };
+
   const wordSpan = (
     <span
       data-testid="caption-word"
       data-entity={entityType || "none"}
       data-active={active ? "true" : "false"}
-      title={isLowConfidence ? `Low AI confidence (${Math.round(confidence * 100)}%) — double click to edit` : undefined}
+      title={isLowConfidence ? `Low AI confidence (${Math.round(confidence * 100)}%) — double click to edit` : start != null ? `${text} (${start.toFixed(2)}s)` : undefined}
+      onClick={handleClick}
       onDoubleClick={isEditable ? () => setPopoverOpen(true) : undefined}
       className={cn(
         "inline-block rounded-md transition-all duration-150 relative",

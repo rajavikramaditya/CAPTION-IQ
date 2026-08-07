@@ -1,0 +1,48 @@
+{
+  "summary": "Round 2 improvements fully tested for CaptionIQ Studio (proj_30bda645b428). All 9 features verified. Found and fixed a bug: single-click on a word was also opening the edit popover (in addition to seeking the video). Fixed by adding e.preventDefault() in SemanticWord.handleClick to prevent Radix UI PopoverTrigger from intercepting single-click via composeEventHandlers.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "bug_fixed": {
+    "component": "SemanticWord.jsx",
+    "issue": "Single-click on a word (when wrapped in WordEditPopover / Radix UI PopoverTrigger asChild) ALSO opened the edit popover in addition to seeking the video. Radix UI's composeEventHandlers runs both the child's onClick AND the PopoverTrigger's toggle logic, since e.stopPropagation() does not call e.preventDefault().",
+    "fix": "Added `e.preventDefault()` in handleClick alongside `e.stopPropagation()`. This prevents Radix UI's trigger from interpreting the single click as a popover open trigger. Double-click still correctly opens the popover via the separate `onDoubleClick` handler.",
+    "file": "/app/frontend/src/components/SemanticWord.jsx",
+    "root_cause": "Radix UI's `composeEventHandlers` checks `event.defaultPrevented` (not `isPropagationStopped`) before running the trigger's own handler. Previously only stopPropagation was called, which stops bubbling to parent DOM elements but does NOT prevent Radix's merged onClick from executing."
+  },
+  "test_results": {
+    "word_count_badge_14_words": "PASS — '14 words' badge visible in transcript header next to 'Transcript' heading (gray rounded pill)",
+    "single_click_seek_mumbai": "PASS — Single-click on 'Mumbai' (start=0.80s) seeks video to ~0.80-0.92s (small drift due to video playing after seek). After fix, does NOT open popover.",
+    "single_click_no_popover": "PASS (after fix) — Clicking any word no longer opens the edit popover. Previously, single-click was triggering popover open via Radix PopoverTrigger's onClick handler.",
+    "double_click_opens_popover": "PASS — Double-click on 'Modi' opens 'EDIT WORD' popover with Start=0, End=0.4, Person tag. Double-click on 'Mumbai' shows Start=0.8, End=1.2, Location tag.",
+    "chunk_fade_in_animation": "PASS — `cq-chunk-enter` keyframe defined and applied: '180ms cubic-bezier(0.16, 1, 0.3, 1) 0s 1 normal forwards running cq-chunk-enter' on the caption wrapper div.",
+    "motivation_template_chip": "PASS — Motivation chip preview: fontFamily='Bebas Neue, sans-serif', color=rgb(255,107,0) (#FF6B00 orange), textShadow includes orange glow 'rgba(255,107,0,0.6)'",
+    "natural_line_break_chunk2": "PASS — At 3.5s (chunk 2: 'to subscribe and watch this amazing video'), splitLines correctly breaks at 'AND' connector: Line1='TO SUBSCRIBE AND', Line2='WATCH THIS AMAZING VIDEO.'",
+    "hormozi_active_word_color_priority": "PASS — Hormozi template active word 'MUMBAI' (a location entity) renders with rgb(0,0,0) black text on rgb(255,255,255) white background — template's inverted active style takes priority over entity's blue color (#60A5FA). This was the bug noted in iteration_6 and is now fixed.",
+    "motivation_template_glow_stroke": "PASS — Motivation template: Bebas Neue font, orange stroke (1.2px rgb(255,107,0) via WebkitTextStroke), orange glow shadow."
+  },
+  "test_report_links": ["/app/test_reports/iteration_7.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SemanticWord.jsx fix (applied): Added e.preventDefault() alongside e.stopPropagation() in handleClick to prevent Radix UI PopoverTrigger from opening the popover on single-click. RCA: Radix UI composeEventHandlers respects event.defaultPrevented not event.isPropagationStopped.",
+    "CaptionEditor.jsx: The parent <p> tag has onClick={() => onSeek?.(line.start)} on the transcript line. SemanticWord's stopPropagation prevents this from firing when clicking individual words — correct behavior.",
+    "Word timing in test project: All 14 words are evenly spaced at 0.40s intervals (0, 0.40, 0.80, 1.20... 5.20s). Chunk boundary at word 7 (everyone at 2.40s). Chunk 2 starts at to (2.80s). Natural break found at 'and' at index 3 of chunk 2, which produces 3-word line 1 vs 4-word line 2 — correct for Motivation/Hormozi (maxWordsPerLine=4)."
+  ],
+  "updated_files": ["/app/frontend/src/components/SemanticWord.jsx"],
+  "success_rate": {
+    "backend": "n/a (frontend-only iteration)",
+    "frontend": "100% — all 9 round-2 feature tests passed (1 bug fixed during testing)"
+  },
+  "test_credentials": "test@captioniq.com / Test1234! | Test project: proj_30bda645b428",
+  "seed_data_creation": "None. Used pre-existing test project.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All round-2 features passing: (1) 14-word badge in transcript header, (2) word click-to-seek fixed (single-click seeks, doesn't open popover), (3) double-click opens WordEditPopover, (4) cq-chunk-enter fade-in animation on chunk transitions, (5) Motivation template Bebas Neue + orange glow, (6) Natural line break at connector 'AND' for chunk 2 ('TO SUBSCRIBE AND' / 'WATCH THIS AMAZING VIDEO.'), (7) Hormozi template active color priority: 'Mumbai' (location entity) shows as black-on-white instead of entity blue. One bug was found and fixed in SemanticWord.jsx: added e.preventDefault() to handleClick so Radix UI PopoverTrigger doesn't open on single-click. Test project word timings: evenly spaced 0.40s intervals (Modi=0s, visited=0.40, Mumbai=0.80, today=1.20, and=1.60, told=2.00, everyone=2.40, to=2.80, subscribe=3.20, and=3.60, watch=4.00, this=4.40, amazing=4.80, video=5.20s).",
+  "rca_of_issue": "Bug: Single-click on SemanticWord opened edit popover. Root cause: Radix UI PopoverTrigger with `asChild` uses `composeEventHandlers` which merges the child's onClick with Radix's toggle handler. The Radix handler only respects `event.defaultPrevented`, not `event.isPropagationStopped()`. Since the original code only called `e.stopPropagation()`, Radix still ran its handler and opened the popover. Fix: Added `e.preventDefault()` in handleClick — this causes composeEventHandlers to skip Radix's handler, preventing the popover from opening on single-click. The double-click path is unaffected as it uses a separate `onDoubleClick` handler that directly calls `setPopoverOpen(true)`."
+}

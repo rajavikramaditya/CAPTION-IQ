@@ -24,9 +24,9 @@ const Seg = ({ active, onClick, title, children, testId }) => (
 // Live-styled mini chip for template picker
 function ChipPreview({ tpl, active }) {
   const bg = tpl.box.enabled ? tpl.box.color : "transparent";
-  const stroke = tpl.stroke.width
-    ? `${Math.min(tpl.stroke.width / 3, 1.5)}px ${tpl.stroke.color}`
-    : "0";
+  const strokeW = tpl.stroke.width ? Math.min(tpl.stroke.width / 2.5, 2) : 0;
+  const stroke = strokeW ? `${strokeW}px ${tpl.stroke.color}` : "0";
+  const textShadow = tpl.shadow && tpl.shadow !== "none" ? tpl.shadow : "none";
   return (
     <div
       className={`h-10 rounded-lg flex items-center justify-center overflow-hidden transition-colors ${
@@ -37,16 +37,16 @@ function ChipPreview({ tpl, active }) {
         style={{
           fontFamily: `'${tpl.font}', sans-serif`,
           fontWeight: tpl.weight,
-          fontSize: "16px",
+          fontSize: "17px",
           color: tpl.active.color,
           backgroundColor: bg,
-          padding: tpl.box.enabled ? "1px 7px" : 0,
-          borderRadius: "5px",
+          padding: tpl.box.enabled ? "1px 8px" : 0,
+          borderRadius: `${17 * (tpl.box.radius || 0.35)}px`,
           textTransform: tpl.uppercase ? "uppercase" : "none",
           WebkitTextStroke: stroke,
           paintOrder: "stroke fill",
-          letterSpacing: `${tpl.letterSpacing}em`,
-          textShadow: tpl.shadow && tpl.shadow !== "none" ? tpl.shadow : "none",
+          letterSpacing: `${Math.min(tpl.letterSpacing || 0, 0.1)}em`,
+          textShadow,
         }}
       >
         Aa

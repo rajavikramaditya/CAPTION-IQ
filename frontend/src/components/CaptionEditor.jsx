@@ -93,6 +93,11 @@ export const CaptionEditor = ({
           >
             Transcript
           </h2>
+          {hasCaptions && (
+            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 rounded-full px-1.5 py-0.5">
+              {lines.reduce((n, l) => n + l.words.length, 0)} words
+            </span>
+          )}
         </div>
 
         {/* Header toolbar */}
@@ -236,6 +241,7 @@ export const CaptionEditor = ({
                         onWordUpdate={onWordUpdate}
                         onWordDelete={onWordDelete}
                         onSegmentSplit={onSegmentSplit}
+                        onSeek={onSeek}
                       />
                     </span>
                   ))}

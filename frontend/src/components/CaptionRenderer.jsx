@@ -54,15 +54,40 @@ function getEmoji(text, entityType) {
   return EMOJI_MAP[c] || (entityType ? EMOJI_MAP[`entity_${entityType}`] : null) || null;
 }
 
+// Connector words that make good line-break points (English + Hindi/Hinglish)
+const BREAK_WORDS = new Set([
+  "and","but","or","so","that","which","while","when","since","because","though","although","after","before","unless","until","if","then","whereas","yet","nor",
+  "ya","aur","par","lekin","kyunki","jo","se","toh","phir","jab","jaise","isliye","ke","ka","ki","ko",
+]);
+
 /**
- * Split a flat word array into 1-2 balanced display lines.
- * Single line when ≤ maxPerLine words; two lines otherwise.
+ * Split a flat word array into 1-2 display lines using natural language boundaries.
+ * - Single line when words.length ≤ maxPerLine
+ * - Prefer splitting after connector words ("and", "but", "ya", "aur", etc.)
+ * - Falls back to midpoint split when no connector is found
  */
 function splitLines(words, maxPerLine = 5) {
   if (!words?.length) return [];
   if (words.length <= maxPerLine) return [words];
-  const mid = Math.ceil(words.length / 2);
-  return [words.slice(0, mid), words.slice(mid)];
+
+  const half = Math.ceil(words.length / 2);
+  // Look for a connector within ±2 words of the midpoint
+  const lo = Math.max(1, half - 2);
+  const hi = Math.min(words.length - 1, half + 2);
+
+  // Find best break: connector word that's closest to midpoint
+  let bestIdx = -1;
+  let bestDist = Infinity;
+  for (let i = lo; i <= hi; i++) {
+    const txt = (words[i - 1]?.text || "").toLowerCase().replace(/[^a-z]/g, "");
+    if (BREAK_WORDS.has(txt)) {
+      const dist = Math.abs(i - half);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+  }
+
+  const splitAt = bestIdx >= 1 ? bestIdx : half;
+  return [words.slice(0, splitAt), words.slice(splitAt)];
 }
 
 /**
@@ -140,10 +165,12 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
 
   const getColor = (w, active) => {
     if (active) {
-      if (isCatEnabled(w.entity_type) && ENTITY_COLORS[w.entity_type]) return ENTITY_COLORS[w.entity_type];
+      // Template active color always takes priority — maintains visual identity
       if (w.speaker_id === "speaker_b") return "#C084FC";
       return style.active?.color || "#FA5D29";
     }
+    // Inactive words: entity type drives semantic coloring
+    if (isCatEnabled(w.entity_type) && ENTITY_COLORS[w.entity_type]) return ENTITY_COLORS[w.entity_type];
     if (w.speaker_id === "speaker_b") return "#E9D5FF";
     return style.color;
   };
@@ -200,9 +227,16 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
   const maxPerLine = Math.max(2, style.maxWordsPerLine || 5);
   const displayLines = splitLines(words, maxPerLine);
 
+  // Derive a stable chunk key from the word IDs — changes when chunk changes to trigger entrance animation
+  const chunkKey = words.map((w) => w.word_id || w.text).join("_");
+
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none" data-testid="caption-renderer">
       <style>{`
+        @keyframes cq-chunk-enter {
+          0% { opacity: 0; transform: translateY(8px) scale(0.97); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
         @keyframes cq-pop {
           0% { transform: scale(0.88); opacity: 0.7; }
           100% { transform: scale(${style.active?.scale || 1.08}); opacity: 1; }
@@ -225,7 +259,8 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
         }
       `}</style>
 
-      <div style={wrapStyle}>
+      {/* key changes when the chunk changes → React remounts div → CSS entrance plays */}
+      <div key={chunkKey} style={{ ...wrapStyle, animation: "cq-chunk-enter 180ms cubic-bezier(0.16,1,0.3,1) forwards" }}>
         {displayLines.map((lineWords, lineIdx) => (
           <div key={lineIdx} style={lineBox}>
             <p style={baseText}>
