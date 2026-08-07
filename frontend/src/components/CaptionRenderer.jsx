@@ -121,6 +121,7 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
       w.entity_type === "location" ? "rgba(96,165,250,0.7)" :
       w.entity_type === "action"   ? "rgba(74,222,128,0.7)" :
       w.entity_type === "number"   ? "rgba(192,132,252,0.7)" :
+      w.entity_type === "time"     ? "rgba(34,211,238,0.7)" :
       w.entity_type === "emotion"  ? "rgba(244,114,182,0.7)" : "transparent";
 
     return {

@@ -4,13 +4,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Pencil, Scissors, Trash2, UserCircle2, MapPin, Zap, XCircle } from "lucide-react";
+import { Pencil, Scissors, Trash2, XCircle } from "lucide-react";
 
+// All 6 PRD-specified semantic entity categories
 const ENTITY_OPTIONS = [
-  { value: null,       label: "None",     color: "bg-gray-100 text-gray-600 border-gray-200" },
-  { value: "person",   label: "Person",   color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  { value: "location", label: "Location", color: "bg-blue-100 text-blue-800 border-blue-300" },
-  { value: "action",   label: "Action",   color: "bg-green-100 text-green-800 border-green-300" },
+  { value: null,       label: "None",     emoji: "○",  color: "bg-gray-100 text-gray-600 border-gray-200" },
+  { value: "person",   label: "Person",   emoji: "👤", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+  { value: "location", label: "Location", emoji: "📍", color: "bg-blue-100 text-blue-800 border-blue-300" },
+  { value: "action",   label: "Action",   emoji: "⚡", color: "bg-green-100 text-green-800 border-green-300" },
+  { value: "number",   label: "Number",   emoji: "🔢", color: "bg-purple-100 text-purple-800 border-purple-300" },
+  { value: "time",     label: "Time",     emoji: "🌐", color: "bg-cyan-100 text-cyan-800 border-cyan-300" },
+  { value: "emotion",  label: "Emotion",  emoji: "💖", color: "bg-pink-100 text-pink-800 border-pink-300" },
 ];
 
 /**
@@ -168,11 +172,12 @@ export function WordEditPopover({
                   key={String(opt.value)}
                   type="button"
                   onClick={() => handleEntityChange(opt.value)}
-                  className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${opt.color} ${
+                  className={`text-xs px-2 py-1 rounded-lg border font-medium transition-all flex items-center gap-1 ${opt.color} ${
                     entityType === opt.value ? "ring-2 ring-offset-1 ring-gray-400 scale-105" : "opacity-70 hover:opacity-100"
                   }`}
                 >
-                  {opt.label}
+                  <span>{opt.emoji}</span>
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </div>

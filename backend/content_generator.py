@@ -111,4 +111,9 @@ async def generate_content(transcript: str, language: str = "en") -> dict:
         "hashtags": [str(h).strip().lstrip("#") for h in data.get("hashtags", []) if h][:15],
         "seo_keywords": [str(k).strip() for k in data.get("seo_keywords", []) if k][:12],
         "cta": str(data.get("cta", "")).strip(),
+        "chapters": [
+            {"start": float(c.get("start", 0)), "title": str(c.get("title", ""))}
+            for c in data.get("chapters", []) if isinstance(c, dict)
+        ],
     }
+

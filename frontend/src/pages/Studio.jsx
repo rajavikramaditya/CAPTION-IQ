@@ -636,6 +636,7 @@ export default function Studio() {
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderUrl, setRenderUrl] = useState(null);
   const [renderError, setRenderError] = useState(null);
+  const [renderCodec, setRenderCodec] = useState("h264"); // h264 | h265
   const pollTimerRef = useRef(null);
 
   const handleStartRender = async (alpha = false) => {
@@ -647,7 +648,10 @@ export default function Studio() {
     setRenderUrl(null);
 
     try {
-      const url = `/projects/${projectId}/render${alpha ? "?alpha=true" : ""}`;
+      const params = new URLSearchParams();
+      if (alpha) params.append("alpha", "true");
+      params.append("codec", renderCodec);
+      const url = `/projects/${projectId}/render?${params.toString()}`;
       const { data } = await api.post(url);
       const jobId = data.job_id;
 
@@ -924,6 +928,29 @@ export default function Studio() {
               We are baking your selected dynamic template styling directly into the video stream.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Codec Selector — only visible when not yet rendering */}
+          {renderStatus !== "rendering" && (
+            <div className="px-1 pb-2">
+              <p className="text-xs font-semibold text-gray-500 mb-2">Video Codec</p>
+              <div className="flex gap-2">
+                {[("h264"), ("h265")].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setRenderCodec(c)}
+                    className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+                      renderCodec === c
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {c === "h264" ? "H.264 (Compatible)" : "H.265 HEVC (Smaller)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
             {renderStatus === "rendering" && (
