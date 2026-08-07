@@ -57,3 +57,9 @@ Build the first MVP of CaptionIQ, an AI caption studio for Indian creators: uplo
 - Fixed `Dashboard.jsx`: missing `Copy` icon from lucide-react (crashed ProjectCard render)
 - Verified: Studio loads real backend transcripts, no demo/mock data — 10/10 frontend tests pass (iteration_5)
 - Test video upload + transcription flow end-to-end next
+
+## Critical Bug Fixes (2026-08-07 Session 2)
+- BUG #1 FIXED: Removed previewWords currentTime<=0 fallback that showed chunk[0] captions before play (appeared as "demo" data)
+- BUG #2 FIXED: Replaced auto-detection with manual Portrait 9:16 / Landscape 16:9 mode toggle. Portrait: 4/12 video col, portrait video fills height, template bar in right panel. Landscape: 8/12 video col, full width.
+- BUG #3 FIXED: Layout respects mode — portrait video no longer shows in 960px wide container (566px black bars each side)
+- Verified: 0 caption spans before play, empty state shown for no-transcript projects, captions only appear during active playback

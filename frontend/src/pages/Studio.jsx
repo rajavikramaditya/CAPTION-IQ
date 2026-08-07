@@ -108,6 +108,17 @@ export default function Studio() {
   const [activeTab, setActiveTab] = useState("transcript"); // "transcript" | "content"
   const [showSearch, setShowSearch] = useState(false);
 
+  // Preview mode — user controls portrait vs landscape workspace
+  // portrait = narrow video column sized for 9:16; landscape = wide column for 16:9
+  const [previewMode, setPreviewMode] = useState(() => {
+    try { return localStorage.getItem(`captioniq:previewMode:${projectId}`) || "landscape"; }
+    catch { return "landscape"; }
+  });
+  const handlePreviewModeChange = useCallback((mode) => {
+    setPreviewMode(mode);
+    localStorage.setItem(`captioniq:previewMode:${projectId}`, mode);
+  }, [projectId]);
+
   // Language selector — persisted per project
   const [language, setLanguage] = useState(() => {
     try { return localStorage.getItem(`captioniq:lang:${projectId}`) || "hinglish"; }
@@ -371,6 +382,9 @@ export default function Studio() {
 
   const activeChunkIndex = useMemo(() => {
     if (!chunks.length) return -1;
+    // Guard: never activate a chunk at currentTime=0 (video hasn't been played yet).
+    // chunk[0] often starts at 0.0s, so without this guard captions appear before play.
+    if (currentTime <= 0) return -1;
     return chunks.findIndex((c) => currentTime >= c.start && currentTime < c.end);
   }, [chunks, currentTime]);
 
@@ -393,13 +407,10 @@ export default function Studio() {
     });
   }, [pushHistory, handleSaveCaptionDoc]);
 
-  const previewWords = useMemo(() => {
-    if (overlayWords.length) return overlayWords;
-    if (currentTime < 0.25 && chunks.length) {
-      return chunks[0].words.map((w, i) => ({ ...w, active: i === 0 }));
-    }
-    return [];
-  }, [overlayWords, chunks, currentTime]);
+  // ─── BUG FIX: Never show captions unless the video is actively playing at a
+  // word's timing window. Removed the previous currentTime < 0.25 fallback that
+  // made chunk[0] appear as "demo" captions before the user pressed play.
+  const previewWords = useMemo(() => overlayWords, [overlayWords]);
 
   // Undo/Redo wired to history hook
   const handleUndo = useCallback(() => {
@@ -801,13 +812,51 @@ export default function Studio() {
       )}
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-3 px-3 pb-3 pt-2 flex-1 min-h-0 overflow-hidden">
-        <section className="lg:col-span-8 flex flex-col h-full gap-2 min-h-[280px]">
-          <div className="flex-1 bg-zinc-950 rounded-xl overflow-hidden relative shadow-md min-h-0">
+        {/* ── Left: Video Preview + Timeline (+ TemplateBar in landscape mode) ── */}
+        <section className={`${previewMode === "portrait" ? "lg:col-span-4" : "lg:col-span-8"} flex flex-col h-full gap-2 min-h-[280px]`}>
+          {/* Preview Mode toggle — inside video area header */}
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5" data-testid="preview-mode-toggle">
+              <button
+                type="button"
+                onClick={() => handlePreviewModeChange("landscape")}
+                data-testid="mode-landscape"
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                  previewMode === "landscape"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Landscape 16:9
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreviewModeChange("portrait")}
+                data-testid="mode-portrait"
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                  previewMode === "portrait"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Portrait 9:16
+              </button>
+            </div>
+            {/* Template bar is shown here only in landscape mode */}
+            {previewMode === "landscape" && (
+              <span className="text-[11px] text-gray-400 font-medium">
+                {captionDoc?.duration ? `${Math.round(captionDoc.duration)}s` : ""}
+              </span>
+            )}
+          </div>
+
+          <div className={`bg-zinc-950 rounded-xl overflow-hidden relative shadow-md ${previewMode === "portrait" ? "flex-1" : "flex-1"} min-h-0`}>
             <VideoStage
               videoUrl={videoUrl}
               videoRef={videoRef}
               words={previewWords}
               style={resolvedStyle}
+              previewMode={previewMode}
               onTimeUpdate={handleTimeUpdate}
               onChangeVideo={() => navigate("/dashboard")}
             />
@@ -822,16 +871,19 @@ export default function Studio() {
               onSegmentTimingChange={handleSegmentTimingChange}
             />
           )}
-          <TemplateBar
-            value={templateId}
-            onSelect={setTemplateId}
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-          />
+          {/* Template bar below video only in landscape mode */}
+          {previewMode === "landscape" && (
+            <TemplateBar
+              value={templateId}
+              onSelect={setTemplateId}
+              settings={settings}
+              onSettingsChange={handleSettingsChange}
+            />
+          )}
         </section>
 
         {/* Right Panel — Tabs: Transcript | AI Content */}
-        <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+        <div className={`${previewMode === "portrait" ? "lg:col-span-8" : "lg:col-span-4"} flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative`}>
           {/* Tab Bar */}
           <div className="flex border-b border-gray-100 shrink-0">
             <button
@@ -876,7 +928,7 @@ export default function Studio() {
           )}
 
           {/* Tab Content */}
-          <div className="flex-1 min-h-0 overflow-hidden p-6">
+          <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-5">
             {activeTab === "transcript" ? (
               <CaptionEditor
                 lines={lines}
@@ -910,6 +962,18 @@ export default function Studio() {
               />
             )}
           </div>
+
+          {/* Template bar inside right panel for portrait mode (saves vertical space for video) */}
+          {previewMode === "portrait" && (
+            <div className="shrink-0 border-t border-gray-100">
+              <TemplateBar
+                value={templateId}
+                onSelect={setTemplateId}
+                settings={settings}
+                onSettingsChange={handleSettingsChange}
+              />
+            </div>
+          )}
         </div>
       </main>
 
