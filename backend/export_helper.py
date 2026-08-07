@@ -33,13 +33,58 @@ def _vtt_ts(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 
-def _segments(doc: CaptionDocument) -> list[dict]:
+def _build_chunks(words: list, max_words: int = 7, max_gap: float = 0.8, max_dur: float = 3.5) -> list[dict]:
+    """
+    Replicate the frontend buildChunks() logic.
+    Groups words into display chunks of ≤ max_words, splitting at natural pauses
+    (gap > max_gap seconds) or when max_dur is exceeded.
+    Returns list of { start, end, text } dicts.
+    """
+    if not words:
+        return []
+
+    chunks = []
+    current = []
+
+    def flush():
+        if not current:
+            return
+        chunks.append({
+            "start": current[0].start,
+            "end": current[-1].end,
+            "text": " ".join(w.text for w in current),
+        })
+        current.clear()
+
+    for i, w in enumerate(words):
+        if not current:
+            current.append(w)
+            continue
+
+        prev = current[-1]
+        gap = (w.start or 0) - (prev.end or 0)
+        dur = (w.end or 0) - (current[0].start or 0)
+
+        # Split conditions: too many words, natural pause, or too long
+        if len(current) >= max_words or gap > max_gap or dur > max_dur:
+            flush()
+        current.append(w)
+
+    flush()
+    return chunks
+
+
+def _segments(doc: CaptionDocument, use_chunks: bool = False, max_words: int = 7) -> list[dict]:
     """
     Return a list of {start, end, text} dicts — one per subtitle block.
-    Uses doc.segments if available, otherwise treats the whole transcript as one block.
+    When use_chunks=True, uses word-level chunking (matches what the frontend displays).
+    Otherwise uses doc.segments (raw ASR output).
     """
     if not doc.words:
         return []
+
+    if use_chunks:
+        return _build_chunks(doc.words, max_words=max_words)
 
     word_by_id = {w.id: w for w in doc.words}
 
@@ -67,9 +112,9 @@ def _segments(doc: CaptionDocument) -> list[dict]:
     }]
 
 
-def to_srt(doc: CaptionDocument) -> str:
-    """Convert CaptionDocument to SRT format string."""
-    segs = _segments(doc)
+def to_srt(doc: CaptionDocument, max_words: int = 7) -> str:
+    """Convert CaptionDocument to SRT format string using word-level chunks."""
+    segs = _segments(doc, use_chunks=True, max_words=max_words)
     if not segs:
         return ""
     lines = []
@@ -81,9 +126,9 @@ def to_srt(doc: CaptionDocument) -> str:
     return "\n".join(lines)
 
 
-def to_vtt(doc: CaptionDocument) -> str:
-    """Convert CaptionDocument to WebVTT format string."""
-    segs = _segments(doc)
+def to_vtt(doc: CaptionDocument, max_words: int = 7) -> str:
+    """Convert CaptionDocument to WebVTT format string using word-level chunks."""
+    segs = _segments(doc, use_chunks=True, max_words=max_words)
     if not segs:
         return "WEBVTT\n"
     lines = ["WEBVTT", ""]

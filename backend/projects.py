@@ -236,6 +236,7 @@ async def update_caption(project_id: str, body: UpdateCaptionRequest,
 async def export_caption(
     project_id: str,
     format: str = Query("srt", description="Output format: srt | vtt | txt | ass"),
+    max_words: int = Query(7, description="Words per caption line for SRT/VTT export"),
     user: dict = Depends(get_current_user),
 ):
     """Download the project captions as a subtitle file (SRT, VTT, TXT, or ASS)."""
@@ -248,11 +249,11 @@ async def export_caption(
     fmt = format.lower().strip()
 
     if fmt == "srt":
-        content = to_srt(doc)
+        content = to_srt(doc, max_words=max_words)
         media_type = "application/x-subrip"
         ext = "srt"
     elif fmt == "vtt":
-        content = to_vtt(doc)
+        content = to_vtt(doc, max_words=max_words)
         media_type = "text/vtt"
         ext = "vtt"
     elif fmt == "txt":
