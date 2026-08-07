@@ -40,7 +40,8 @@ CONTENT_SYSTEM = (
     '  "linkedin_caption": "string (professional storytelling, 3-4 sentences)",\n'
     '  "hashtags": ["array", "of", "10", "hashtags", "without", "# prefix"],\n'
     '  "seo_keywords": ["array", "of", "8", "keywords"],\n'
-    '  "cta": "string (one clear call-to-action, <12 words)"\n'
+    '  "cta": "string (one clear call-to-action, <12 words)",\n'
+    '  "chapters": [{"start": 0.0, "title": "Introduction"}, {"start": 45.0, "title": "Main Topic"}]\n'
     "}"
 )
 
@@ -66,7 +67,7 @@ async def generate_content(transcript: str, language: str = "en") -> dict:
     empty = {
         "summary": "", "hook": "", "youtube_title": "",
         "instagram_caption": "", "linkedin_caption": "",
-        "hashtags": [], "seo_keywords": [], "cta": "",
+        "hashtags": [], "seo_keywords": [], "cta": "", "chapters": [],
     }
 
     if not transcript or not transcript.strip():

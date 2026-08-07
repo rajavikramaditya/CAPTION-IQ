@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, Loader2, Copy, Check, Hash, Youtube, Instagram, Linkedin,
-  Target, Zap, BookOpen, Search, RefreshCw,
+  Target, Zap, BookOpen, Search, RefreshCw, Clock, Play
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
@@ -85,7 +85,7 @@ function TagsSection({ icon, title, color, items, prefix = "#", onCopy, copied }
  *
  * Props: projectId, hasCaptions, initialContent (from project document if already generated)
  */
-export const ContentPanel = ({ projectId, hasCaptions, initialContent }) => {
+export const ContentPanel = ({ projectId, hasCaptions, initialContent, onSeek }) => {
   const [content, setContent] = useState(initialContent || null);
   const [loading, setLoading] = useState(false);
   const { copied, copy } = useCopy();
@@ -249,6 +249,34 @@ export const ContentPanel = ({ projectId, hasCaptions, initialContent }) => {
                   icon={Search} title="SEO Keywords" color="text-green-700 bg-green-50"
                   items={content.seo_keywords} prefix="" onCopy={copy} copied={copied}
                 />
+              )}
+
+              {/* Chapters */}
+              {content.chapters?.length > 0 && (
+                <Section icon={Clock} title="AI Video Chapters" color="text-indigo-600 bg-indigo-50">
+                  <div className="space-y-1.5" data-testid="chapters-list">
+                    {content.chapters.map((chap, idx) => {
+                      const m = Math.floor((chap.start || 0) / 60);
+                      const s = Math.floor((chap.start || 0) % 60);
+                      const ts = `${m}:${s.toString().padStart(2, "0")}`;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => onSeek?.(chap.start || 0)}
+                          className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors group"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                              {ts}
+                            </span>
+                            <span className="text-xs font-semibold text-gray-800">{chap.title}</span>
+                          </div>
+                          <Play className="h-3 w-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Section>
               )}
 
               {/* CTA */}

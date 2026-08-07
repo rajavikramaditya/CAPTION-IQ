@@ -57,6 +57,7 @@ class CaptionWord(BaseModel):
     end: float
     entity_type: Optional[str] = None       # person | location | action | None
     confidence: Optional[float] = None
+    speaker_id: Optional[str] = None        # speaker_a | speaker_b | None
     emphasis: bool = False
 
 

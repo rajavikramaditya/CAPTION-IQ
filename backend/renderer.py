@@ -17,19 +17,23 @@ async def render_burned_video(
     video_bytes: bytes,
     ass_content: str,
     original_filename: str,
+    alpha: bool = False,
 ) -> bytes:
     """
-    Burn ASS subtitles into the video bytes using FFmpeg.
-    Returns the completed video bytes.
+    Burn ASS subtitles into video bytes using FFmpeg.
+    If alpha=True, generates a transparent-background video track (ProRes/WebM with alpha).
+    Returns completed video bytes.
     """
     ext = Path(original_filename or "clip.mp4").suffix.lower() or ".mp4"
     if ext not in (".mp4", ".mov", ".m4v", ".webm", ".mkv"):
         ext = ".mp4"
 
+    out_ext = ".mov" if alpha else ".mp4"
+
     # Create temporary files
     in_video_fd, in_video_path = tempfile.mkstemp(suffix=ext)
     ass_fd, ass_path = tempfile.mkstemp(suffix=".ass")
-    out_video_path = in_video_path + ".output.mp4"
+    out_video_path = in_video_path + f".output{out_ext}"
 
     try:
         # Write inputs
@@ -38,17 +42,25 @@ async def render_burned_video(
         with os.fdopen(ass_fd, "w", encoding="utf-8") as f:
             f.write(ass_content)
 
-        # Build FFmpeg command.
-        # Use relative paths and quotes to avoid Windows path escaping issues with ffmpeg filter paths.
-        # On Windows, we must escape the backslashes or use forward slashes in filter paths.
         safe_ass_path = ass_path.replace("\\", "/")
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", in_video_path,
-            "-vf", f"subtitles='{safe_ass_path}'",
-            "-c:a", "copy",
-            out_video_path
-        ]
+
+        if alpha:
+            # Transparent background output for NLE plugins (ProRes 4444 or PNG codec)
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", in_video_path,
+                "-vf", f"subtitles='{safe_ass_path}',colorkey=0x000000:0.01:0.0",
+                "-c:v", "png",
+                out_video_path
+            ]
+        else:
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", in_video_path,
+                "-vf", f"subtitles='{safe_ass_path}'",
+                "-c:a", "copy",
+                out_video_path
+            ]
 
         logger.info(f"Starting ffmpeg subtitle render: {' '.join(cmd)}")
 

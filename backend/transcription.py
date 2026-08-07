@@ -120,15 +120,23 @@ async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish
     language_detected = getattr(resp, "language", None)
     tags = await _tag_entities(full_text)
 
+    from diarization import assign_speakers
+
     words = []
     for i, w in enumerate(raw_words):
         text = _gv(w, "word", "") or _gv(w, "text", "")
+        prob = _gv(w, "probability", None)
+        if prob is None:
+            prob = _gv(w, "confidence", None)
         words.append(CaptionWord(
             id=f"w_{i}", text=text,
             start=float(_gv(w, "start", 0.0) or 0.0),
             end=float(_gv(w, "end", 0.0) or 0.0),
             entity_type=_classify(text, tags),
+            confidence=float(prob) if prob is not None else None,
         ))
+
+    words = assign_speakers(words)
 
     segments = []
     for si, s in enumerate(raw_segments):

@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { TEMPLATES, getTemplate, effectiveSettings } from "@/lib/templates";
 
+import { FontUploader } from "@/components/FontUploader";
+
 const Seg = ({ active, onClick, title, children, testId }) => (
   <button
     type="button"
@@ -58,6 +60,7 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Caption Style</span>
         <div className="flex items-center gap-2 flex-wrap">
+          <FontUploader onFontUploaded={(font) => onSettingsChange({ customFont: font.family })} />
           <div className="flex items-center gap-1" data-testid="position-controls">
             <Seg active={eff.position === "top"} onClick={() => onSettingsChange({ position: "top" })} title="Top" testId="position-top">
               <AlignVerticalJustifyStart className="h-3.5 w-3.5" />

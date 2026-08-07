@@ -13,6 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 from database import client, ensure_indexes
 from auth import router as auth_router, seed_admin
 from projects import router as projects_router
+from fonts import router as fonts_router
 from storage import init_storage
 
 logging.basicConfig(level=logging.INFO,
@@ -31,6 +32,7 @@ async def root():
 
 api_router.include_router(auth_router)
 api_router.include_router(projects_router)
+api_router.include_router(fonts_router)
 app.include_router(api_router)
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")

@@ -93,8 +93,10 @@ export const CaptionRenderer = memo(function CaptionRenderer({ words, style }) {
         if (w.entity_type === "location") return "#60A5FA"; // Bright Blue
         if (w.entity_type === "action") return "#4ADE80";   // Bright Green
       }
+      if (w.speaker_id === "speaker_b") return "#C084FC"; // Speaker B Purple Accent
       return style.active.color;
     }
+    if (w.speaker_id === "speaker_b") return "#E9D5FF";   // Soft Purple for Speaker B
     return style.color;
   };
 

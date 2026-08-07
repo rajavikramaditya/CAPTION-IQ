@@ -63,6 +63,7 @@ export const CaptionEditor = ({
   onDenoiseChange,
   language = "hinglish",
   onLanguageChange,
+  onTranslate,
 }) => {
   const activeRef = useRef(null);
   const hasCaptions = lines && lines.length > 0;
@@ -155,6 +156,8 @@ export const CaptionEditor = ({
                       <SemanticWord
                         text={w.text}
                         entityType={w.entity_type}
+                        confidence={w.confidence}
+                        speakerId={w.speaker_id}
                         active={w === activeWord}
                         /* edit props */
                         wordId={isEditable ? w.id : undefined}
@@ -196,20 +199,33 @@ export const CaptionEditor = ({
 
       {hasVideo && (
         <div className="mt-4 space-y-2">
-          {/* Language Selector */}
-          <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2">
-            <Globe className="h-4 w-4 text-gray-400 shrink-0" />
-            <label className="text-sm font-medium text-gray-700 shrink-0">Language</label>
-            <select
-              value={language}
-              onChange={(e) => onLanguageChange?.(e.target.value)}
-              data-testid="language-selector"
-              className="flex-1 text-sm text-gray-700 bg-transparent focus:outline-none cursor-pointer"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.value} value={l.value}>{l.label}</option>
-              ))}
-            </select>
+          {/* Language Selector & Translate */}
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Globe className="h-4 w-4 text-gray-400 shrink-0" />
+              <label className="text-sm font-medium text-gray-700 shrink-0">Language</label>
+              <select
+                value={language}
+                onChange={(e) => onLanguageChange?.(e.target.value)}
+                data-testid="language-selector"
+                className="w-full text-sm text-gray-700 bg-transparent focus:outline-none cursor-pointer truncate"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.value} value={l.value}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+            {hasCaptions && onTranslate && (
+              <button
+                type="button"
+                onClick={() => onTranslate(language)}
+                data-testid="translate-btn"
+                title="Translate captions to selected language"
+                className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg bg-orange-100 text-[#FA5D29] hover:bg-orange-200 transition-colors flex items-center gap-1"
+              >
+                <Sparkles className="h-3 w-3" /> Translate
+              </button>
+            )}
           </div>
 
           {/* Audio Enhancement Toggle */}

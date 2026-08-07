@@ -17,6 +17,8 @@ import { WordEditPopover } from "@/components/WordEditPopover";
 export const SemanticWord = ({
   text,
   entityType,
+  confidence,
+  speakerId,
   active,
   // edit props
   wordId,
@@ -31,22 +33,32 @@ export const SemanticWord = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const isEntity = Boolean(entityType);
   const isEditable = Boolean(wordId && onWordUpdate);
+  const isLowConfidence = confidence !== null && confidence !== undefined && confidence < 0.65;
 
   const wordSpan = (
     <span
       data-testid="caption-word"
       data-entity={entityType || "none"}
       data-active={active ? "true" : "false"}
+      title={isLowConfidence ? `Low AI confidence (${Math.round(confidence * 100)}%) — double click to edit` : undefined}
       onDoubleClick={isEditable ? () => setPopoverOpen(true) : undefined}
       className={cn(
-        "inline-block rounded-md transition-all duration-150",
+        "inline-block rounded-md transition-all duration-150 relative",
         isEntity && "px-1.5 py-0.5 border font-semibold",
         isEntity && SEMANTIC_STYLES[entityType],
+        isLowConfidence && !active && "underline decoration-wavy decoration-red-400 underline-offset-4",
+        speakerId === "speaker_b" && !isEntity && "border-l-2 border-indigo-400 pl-1",
         active && "bg-gray-900 text-white border-gray-900 shadow-sm scale-[1.04]",
         isEditable && "cursor-pointer hover:ring-2 hover:ring-[#FA5D29]/40 hover:ring-offset-1"
       )}
     >
       {text}
+      {isLowConfidence && !active && (
+        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+        </span>
+      )}
     </span>
   );
 

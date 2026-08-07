@@ -318,8 +318,8 @@ async def generate_ai_content(
     return content
 
 
-async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path: str, filename: str, doc_dump: dict):
-    """Asynchronous background worker task that generates ASS subtitles, bakes them via ffmpeg, and uploads the MP4."""
+async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path: str, filename: str, doc_dump: dict, alpha: bool = False):
+    """Asynchronous background worker task that generates ASS subtitles, bakes them via ffmpeg, and uploads the MP4/MOV."""
     try:
         # Load video data from object storage
         video_data, ctype = get_object(media_path)
@@ -329,11 +329,13 @@ async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path
         ass_str = to_ass(doc)
 
         # Run render
-        rendered_bytes = await render_burned_video(video_data, ass_str, filename)
+        rendered_bytes = await render_burned_video(video_data, ass_str, filename, alpha=alpha)
 
-        # Upload completed MP4 to storage renders path
-        out_path = f"{APP_NAME}/renders/{user_id}/{job_id}.mp4"
-        put_result = put_object(out_path, rendered_bytes, "video/mp4")
+        # Upload completed MP4/MOV to storage renders path
+        ext = "mov" if alpha else "mp4"
+        mime = "video/quicktime" if alpha else "video/mp4"
+        out_path = f"{APP_NAME}/renders/{user_id}/{job_id}.{ext}"
+        put_result = put_object(out_path, rendered_bytes, mime)
 
         # Update Job in database
         download_url = f"/api/projects/{project_id}/render/download/{job_id}"
@@ -363,6 +365,7 @@ async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path
 async def render_project(
     project_id: str,
     background_tasks: BackgroundTasks,
+    alpha: bool = Query(False, description="Export alpha-channel transparent video for NLE plugins"),
     user: dict = Depends(get_current_user),
 ):
     """Trigger background video rendering with captions burned in."""
@@ -393,7 +396,8 @@ async def render_project(
         user_id=user["user_id"],
         media_path=media["storage_path"],
         filename=media.get("original_filename") or "video.mp4",
-        doc_dump=raw_doc
+        doc_dump=raw_doc,
+        alpha=alpha,
     )
 
     return {"job_id": job_id, "status": "processing"}
@@ -443,3 +447,28 @@ async def download_rendered_video(
             "Content-Length": str(len(data)),
         },
     )
+
+
+@router.post("/{project_id}/translate")
+async def translate_project(
+    project_id: str,
+    target_lang: str = Query("english", description="Target language: english | hindi | hinglish | spanish ..."),
+    user: dict = Depends(get_current_user),
+):
+    """Translate project captions into target language while preserving word timestamps."""
+    from translator import translate_caption_doc
+
+    project = await _owned_project(project_id, user)
+    raw_doc = project.get("caption_document")
+    if not raw_doc or not raw_doc.get("words"):
+        raise HTTPException(status_code=400, detail="No captions found to translate")
+
+    doc = CaptionDocument(**raw_doc)
+    translated_doc = await translate_caption_doc(doc, target_lang)
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"caption_document": translated_doc.model_dump(), "updated_at": now_dt()}}
+    )
+
+    return translated_doc.model_dump()

@@ -7,6 +7,7 @@ import { VideoStage } from "@/components/VideoStage";
 import { CaptionEditor } from "@/components/CaptionEditor";
 import { ContentPanel } from "@/components/ContentPanel";
 import { TemplateBar } from "@/components/TemplateBar";
+import { TimelineBar } from "@/components/TimelineBar";
 import { SearchReplacePanel } from "@/components/SearchReplacePanel";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
@@ -473,6 +474,20 @@ export default function Studio() {
     }
   };
 
+  const handleTranslate = useCallback(async (targetLang) => {
+    if (!captionDoc) return;
+    const tid = toast.loading(`Translating captions to ${targetLang}…`);
+    try {
+      const { data } = await api.post(`/projects/${projectId}/translate?target_lang=${targetLang}`);
+      pushHistory(captionDoc);
+      resetHistory(data);
+      setResult(docToResult(data));
+      toast.success(`Captions translated to ${targetLang}! ✨`, { id: tid });
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Translation failed", { id: tid });
+    }
+  }, [captionDoc, projectId, pushHistory, resetHistory]);
+
   const handleSeek = (t) => {
     if (videoRef.current) {
       videoRef.current.currentTime = t;
@@ -513,26 +528,26 @@ export default function Studio() {
   const [renderError, setRenderError] = useState(null);
   const pollTimerRef = useRef(null);
 
-  const handleStartRender = async () => {
+  const handleStartRender = async (alpha = false) => {
     if (!result) return;
     setRenderOpen(true);
     setRenderStatus("rendering");
-    setRenderProgress(10);
-    setRenderUrl(null);
+    setRenderProgress(15);
     setRenderError(null);
+    setRenderUrl(null);
 
     try {
-      const { data } = await api.post(`/projects/${projectId}/render`);
+      const url = `/projects/${projectId}/render${alpha ? "?alpha=true" : ""}`;
+      const { data } = await api.post(url);
       const jobId = data.job_id;
-      
-      let currentProgress = 10;
-      
-      // Poll rendering status every 2.5 seconds
+
+      // Poll render status every 2 seconds
+      clearInterval(pollTimerRef.current);
       pollTimerRef.current = setInterval(async () => {
         try {
-          const resp = await api.get(`/projects/${projectId}/render/status/${jobId}`);
-          const job = resp.data;
-          
+          const { data: job } = await api.get(`/projects/${projectId}/render/status/${jobId}`);
+          setRenderProgress(job.progress || 50);
+
           if (job.status === "done") {
             clearInterval(pollTimerRef.current);
             setRenderStatus("done");
@@ -542,22 +557,18 @@ export default function Studio() {
           } else if (job.status === "failed") {
             clearInterval(pollTimerRef.current);
             setRenderStatus("failed");
-            setRenderError(job.error || "FFmpeg rendering failed");
-            toast.error("Video rendering failed");
-          } else {
-            // Processing: simulate progressive increment
-            currentProgress = Math.min(currentProgress + 8, 92);
-            setRenderProgress(currentProgress);
+            setRenderError(job.error || "Rendering failed on server.");
+            toast.error("Video rendering failed.");
           }
         } catch (err) {
-          console.error("Error polling render status:", err);
+          clearInterval(pollTimerRef.current);
+          setRenderStatus("failed");
+          setRenderError("Error checking render status.");
         }
-      }, 2500);
-
+      }, 2000);
     } catch (e) {
       setRenderStatus("failed");
-      setRenderError(formatApiErrorDetail(e.response?.data?.detail) || "Failed to start rendering job");
-      toast.error("Failed to start render");
+      setRenderError(formatApiErrorDetail(e.response?.data?.detail) || "Failed to start render task.");
     }
   };
 
@@ -653,6 +664,11 @@ export default function Studio() {
                 <AlignLeft className="h-4 w-4 mr-2 text-gray-400" /> TXT
                 <span className="ml-auto text-xs text-gray-400">Plain</span>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleStartRender(true)} data-testid="export-alpha">
+                <Film className="h-4 w-4 mr-2 text-indigo-500" /> Alpha MOV
+                <span className="ml-auto text-xs font-semibold text-indigo-600 bg-indigo-50 px-1 rounded">Pro NLE</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -670,6 +686,14 @@ export default function Studio() {
               onChangeVideo={() => navigate("/dashboard")}
             />
           </div>
+          {captionDoc?.segments?.length > 0 && (
+            <TimelineBar
+              segments={captionDoc.segments}
+              currentTime={currentTime}
+              duration={captionDoc.duration || videoRef.current?.duration || 0}
+              onSeek={handleSeek}
+            />
+          )}
           <TemplateBar
             value={templateId}
             onSelect={setTemplateId}
@@ -744,12 +768,14 @@ export default function Studio() {
                 onDenoiseChange={handleDenoiseChange}
                 language={language}
                 onLanguageChange={handleLanguageChange}
+                onTranslate={handleTranslate}
               />
             ) : (
               <ContentPanel
                 projectId={projectId}
                 hasCaptions={Boolean(result?.words?.length)}
                 initialContent={project?.ai_content || null}
+                onSeek={handleSeek}
               />
             )}
           </div>
