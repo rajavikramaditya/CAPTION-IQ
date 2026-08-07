@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Sparkles, LogOut, HelpCircle, Clock, Keyboard } from "lucide-react";
+import { Sparkles, LogOut, HelpCircle, Clock, Keyboard, Gift, Copy, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 export const AppHeader = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const doLogout = async () => {
     await logout();
@@ -23,6 +26,14 @@ export const AppHeader = () => {
     { key: "Ctrl + Enter", desc: "Generate captions for clip" },
     { key: "Esc", desc: "Close open panels and popovers" },
   ];
+
+  const handleCopyRef = () => {
+    const code = `https://captioniq.ai/invite?ref=${user?.user_id || "creator"}`;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    toast.success("Referral link copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <>
@@ -55,6 +66,18 @@ export const AppHeader = () => {
               <Clock className="h-3.5 w-3.5" />
               <span>12.5 / 60 mins</span>
             </div>
+
+            {/* Referral Gift Button */}
+            <button
+              type="button"
+              onClick={() => setReferralOpen(true)}
+              data-testid="referral-btn"
+              title="Invite creator & get +5 mins free"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors"
+            >
+              <Gift className="h-3.5 w-3.5 text-emerald-600" />
+              <span>+5 Mins Free</span>
+            </button>
 
             {/* Shortcuts Help Button */}
             <button
@@ -115,6 +138,42 @@ export const AppHeader = () => {
                 </kbd>
               </div>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Referral Program Dialog */}
+      <Dialog open={referralOpen} onOpenChange={setReferralOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-gray-900">
+              <Gift className="h-5 w-5 text-emerald-600" />
+              Invite Creators, Get Free Minutes! 🎁
+            </DialogTitle>
+            <DialogDescription className="text-sm text-gray-500">
+              Share your personal invite link. When a creator signs up, you both get +5 bonus transcription minutes instantly!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-3">
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-2">
+              <input
+                type="text"
+                readOnly
+                value={`https://captioniq.ai/invite?ref=${user?.user_id || "creator"}`}
+                className="flex-1 text-xs bg-transparent border-0 font-mono text-gray-700 focus:outline-none"
+              />
+              <button
+                onClick={handleCopyRef}
+                className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "Copied!" : "Copy Link"}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 text-center">
+              No limit on invites! Earn up to 300 free minutes per month.
+            </p>
           </div>
         </DialogContent>
       </Dialog>

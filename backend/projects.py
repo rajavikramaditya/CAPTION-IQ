@@ -262,8 +262,18 @@ async def export_caption(
         content = to_ass(doc)
         media_type = "text/plain"
         ext = "ass"
+    elif fmt == "json":
+        from export_helper import to_json
+        content = to_json(doc)
+        media_type = "application/json"
+        ext = "json"
+    elif fmt == "csv":
+        from export_helper import to_csv
+        content = to_csv(doc)
+        media_type = "text/csv"
+        ext = "csv"
     else:
-        raise HTTPException(status_code=400, detail=f"Unsupported format '{fmt}'. Use srt, vtt, txt, or ass.")
+        raise HTTPException(status_code=400, detail=f"Unsupported format '{fmt}'. Use srt, vtt, txt, ass, json, or csv.")
 
     safe_title = re.sub(r'[^\w\s-]', '', project.get('title', 'captions')).strip().replace(' ', '_')
     filename = f"{safe_title}.{ext}"
@@ -319,7 +329,7 @@ async def generate_ai_content(
     return content
 
 
-async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path: str, filename: str, doc_dump: dict, alpha: bool = False):
+async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path: str, filename: str, doc_dump: dict, alpha: bool = False, codec: str = "h264"):
     """Asynchronous background worker task that generates ASS subtitles, bakes them via ffmpeg, and uploads the MP4/MOV."""
     try:
         # Load video data from object storage
@@ -330,7 +340,7 @@ async def _run_render_job(project_id: str, job_id: str, user_id: str, media_path
         ass_str = to_ass(doc)
 
         # Run render
-        rendered_bytes = await render_burned_video(video_data, ass_str, filename, alpha=alpha)
+        rendered_bytes = await render_burned_video(video_data, ass_str, filename, alpha=alpha, codec=codec)
 
         # Upload completed MP4/MOV to storage renders path
         ext = "mov" if alpha else "mp4"
@@ -367,6 +377,7 @@ async def render_project(
     project_id: str,
     background_tasks: BackgroundTasks,
     alpha: bool = Query(False, description="Export alpha-channel transparent video for NLE plugins"),
+    codec: str = Query("h264", description="Video codec: h264 | h265"),
     user: dict = Depends(get_current_user),
 ):
     """Trigger background video rendering with captions burned in."""
@@ -399,6 +410,7 @@ async def render_project(
         filename=media.get("original_filename") or "video.mp4",
         doc_dump=raw_doc,
         alpha=alpha,
+        codec=codec,
     )
 
     return {"job_id": job_id, "status": "processing"}
@@ -512,3 +524,26 @@ async def toggle_privacy(
     )
 
     return {"project_id": project_id, "auto_delete_24h": auto_delete_24h, "auto_delete_at": delete_at}
+
+
+@router.post("/{project_id}/clone")
+async def clone_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Duplicate an existing project, its media reference, and captions."""
+    orig = await _owned_project(project_id, user)
+    new_id = gen_id("proj")
+    new_title = f"{orig.get('title', 'Project')} (Copy)"
+    
+    cloned = {
+        **orig,
+        "project_id": new_id,
+        "title": new_title,
+        "created_at": now_dt(),
+        "updated_at": now_dt(),
+    }
+    cloned.pop("_id", None)
+
+    await db.projects.insert_one(cloned)
+    return {"project_id": new_id, "title": new_title}

@@ -768,11 +768,19 @@ export default function Studio() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("ass")} data-testid="export-ass">
                 <FileCode2 className="h-4 w-4 mr-2 text-purple-500" /> ASS
-                <span className="ml-auto text-xs text-gray-400">DaVinci</span>
+                <span className="ml-auto text-xs text-gray-400">Styles</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("json")} data-testid="export-json">
+                <FileCode2 className="h-4 w-4 mr-2 text-orange-500" /> JSON
+                <span className="ml-auto text-xs text-gray-400">Data</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("csv")} data-testid="export-csv">
+                <FileText className="h-4 w-4 mr-2 text-yellow-500" /> CSV
+                <span className="ml-auto text-xs text-gray-400">Table</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("txt")} data-testid="export-txt">
-                <AlignLeft className="h-4 w-4 mr-2 text-gray-400" /> TXT
-                <span className="ml-auto text-xs text-gray-400">Plain</span>
+                <AlignLeft className="h-4 w-4 mr-2 text-gray-500" /> TXT
+                <span className="ml-auto text-xs text-gray-400">Raw</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleStartRender(true)} data-testid="export-alpha">

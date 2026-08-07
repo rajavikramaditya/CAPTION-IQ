@@ -18,11 +18,12 @@ async def render_burned_video(
     ass_content: str,
     original_filename: str,
     alpha: bool = False,
+    codec: str = "libx264",
 ) -> bytes:
     """
     Burn ASS subtitles into video bytes using FFmpeg.
-    If alpha=True, generates a transparent-background video track (ProRes/WebM with alpha).
-    Returns completed video bytes.
+    If alpha=True, generates a transparent-background video track.
+    codec can be 'libx264' (H.264 default) or 'libx265' (H.265 / HEVC compact).
     """
     ext = Path(original_filename or "clip.mp4").suffix.lower() or ".mp4"
     if ext not in (".mp4", ".mov", ".m4v", ".webm", ".mkv"):
@@ -54,10 +55,14 @@ async def render_burned_video(
                 out_video_path
             ]
         else:
+            vcodec = "libx265" if codec == "h265" else "libx264"
             cmd = [
                 "ffmpeg", "-y",
                 "-i", in_video_path,
                 "-vf", f"subtitles='{safe_ass_path}'",
+                "-c:v", vcodec,
+                "-preset", "fast",
+                "-crf", "22",
                 "-c:a", "copy",
                 out_video_path
             ]

@@ -95,6 +95,25 @@ def to_vtt(doc: CaptionDocument) -> str:
     return "\n".join(lines)
 
 
+def to_json(doc: CaptionDocument) -> str:
+    """Convert CaptionDocument to JSON format string for data analysis."""
+    import json
+    segs = _segments(doc)
+    return json.dumps({"duration": doc.duration, "segments": segs, "words": [w.model_dump() for w in doc.words]}, indent=2)
+
+
+def to_csv(doc: CaptionDocument) -> str:
+    """Convert CaptionDocument to CSV format string."""
+    import csv, io
+    segs = _segments(doc)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["index", "start", "end", "text"])
+    for i, seg in enumerate(segs, 1):
+        writer.writerow([i, seg["start"], seg["end"], seg["text"]])
+    return output.getvalue()
+
+
 import re
 
 TEMPLATE_PRESETS = {

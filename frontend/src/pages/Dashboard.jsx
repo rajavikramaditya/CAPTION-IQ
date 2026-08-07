@@ -153,6 +153,14 @@ function ProjectCard({ project, onDelete, onRename, onClick }) {
         {/* Action buttons — visible on hover */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
+            onClick={(e) => { e.stopPropagation(); onClone?.(project.project_id); }}
+            data-testid={`clone-project-${project.project_id}`}
+            className="h-7 w-7 rounded-lg bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white flex items-center justify-center transition-colors"
+            title="Duplicate / Clone project"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); setRenaming(true); }}
             data-testid={`rename-project-${project.project_id}`}
             className="h-7 w-7 rounded-lg bg-white/20 backdrop-blur-sm hover:bg-white/40 text-white flex items-center justify-center transition-colors"
@@ -269,6 +277,16 @@ export default function Dashboard() {
       toast.success("Project deleted");
     } catch {
       toast.error("Delete failed");
+    }
+  };
+
+  const handleClone = async (id) => {
+    try {
+      const { data } = await api.post(`/projects/${id}/clone`);
+      toast.success(`Cloned project as "${data.title}"! 📑`);
+      await load();
+    } catch {
+      toast.error("Failed to clone project");
     }
   };
 
@@ -431,6 +449,7 @@ export default function Dashboard() {
                     key={p.project_id}
                     project={p}
                     onDelete={remove}
+                    onClone={handleClone}
                     onRename={handleRename}
                     onClick={() => navigate(`/studio/${p.project_id}`)}
                   />
