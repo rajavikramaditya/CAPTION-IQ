@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Loader2, Download, FileText, Captions, FileCode2, AlignLeft, Sparkles, ScrollText, Film, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, Download, FileText, Captions, FileCode2, AlignLeft, Sparkles, ScrollText, Film, AlertTriangle, CheckCircle2, Undo2, Redo2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { VideoStage } from "@/components/VideoStage";
 import { CaptionEditor } from "@/components/CaptionEditor";
 import { ContentPanel } from "@/components/ContentPanel";
 import { TemplateBar } from "@/components/TemplateBar";
+import { SearchReplacePanel } from "@/components/SearchReplacePanel";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -14,6 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Progress } from "@/components/ui/progress";
 import { getTemplate, resolveStyle, DEFAULT_TEMPLATE_ID, DEFAULT_SETTINGS } from "@/lib/templates";
 import { api, API, formatApiErrorDetail } from "@/lib/api";
+import { useCaptionHistory } from "@/hooks/useCaptionHistory";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,11 +99,22 @@ export default function Studio() {
   const [project, setProject] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [result, setResult] = useState(null);
-  const [captionDoc, setCaptionDoc] = useState(null);
   const [transcribing, setTranscribing] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [saveStatus, setSaveStatus] = useState("saved");
   const [activeTab, setActiveTab] = useState("transcript"); // "transcript" | "content"
+  const [showSearch, setShowSearch] = useState(false);
+
+  // Language selector — persisted per project
+  const [language, setLanguage] = useState(() => {
+    try { return localStorage.getItem(`captioniq:lang:${projectId}`) || "hinglish"; }
+    catch { return "hinglish"; }
+  });
+  const handleLanguageChange = useCallback((val) => {
+    setLanguage(val);
+    localStorage.setItem(`captioniq:lang:${projectId}`, val);
+  }, [projectId]);
+
   const [denoise, setDenoise] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`captioniq:denoise:${projectId}`)) ?? true; }
     catch { return true; }
@@ -110,6 +124,12 @@ export default function Studio() {
     setDenoise(val);
     localStorage.setItem(`captioniq:denoise:${projectId}`, JSON.stringify(val));
   }, [projectId]);
+
+  // Undo / Redo history
+  const {
+    captionDoc, setCaptionDoc, resetHistory, push: pushHistory,
+    undo: historyUndo, redo: historyRedo, canUndo, canRedo,
+  } = useCaptionHistory(null);
 
   // ---- Caption Template Engine state (persisted per project in localStorage) ----
   const STORAGE_KEY = `captioniq:style:${projectId}`;
@@ -148,7 +168,7 @@ export default function Studio() {
         const { data } = await api.get(`/projects/${projectId}`);
         setProject(data);
         const doc = data.caption_document;
-        setCaptionDoc(doc);
+        resetHistory(doc);
         setResult(docToResult(doc));
         // Hydrate visual template style from MongoDB if present
         if (doc.style && doc.style.template_id) {
@@ -164,7 +184,7 @@ export default function Studio() {
         setPageLoading(false);
       }
     })();
-  }, [projectId, navigate]);
+  }, [projectId, navigate, resetHistory]);
 
   // ---- Save caption document to backend (debounced) ----
   const saveTimerRef = useRef(null);
@@ -209,6 +229,7 @@ export default function Studio() {
   const handleWordUpdate = useCallback((wordId, patch) => {
     setCaptionDoc((prev) => {
       if (!prev) return prev;
+      pushHistory(prev); // save to undo stack
       const words = prev.words.map((w) =>
         w.id === wordId ? { ...w, ...patch } : w
       );
@@ -228,7 +249,7 @@ export default function Studio() {
       handleSaveCaptionDoc(updated);
       return updated;
     });
-  }, [handleSaveCaptionDoc]);
+  }, [handleSaveCaptionDoc, pushHistory]);
 
   // ---- Word delete ----
   const handleWordDelete = useCallback((wordId) => {
@@ -330,7 +351,10 @@ export default function Studio() {
   );
 
   const lines = useMemo(() => buildLines(result), [result]);
-  const chunks = useMemo(() => buildChunks(result?.words), [result]);
+  const chunks = useMemo(
+    () => buildChunks(result?.words, { maxWords: settings?.maxWords ?? 4 }),
+    [result, settings?.maxWords]
+  );
 
   const activeWord = useMemo(() => {
     if (!result?.words) return null;
@@ -360,17 +384,85 @@ export default function Studio() {
     return [];
   }, [overlayWords, chunks, currentTime]);
 
+  // Undo/Redo wired to history hook
+  const handleUndo = useCallback(() => {
+    const prev = historyUndo();
+    if (!prev) { toast.info("Nothing to undo"); return; }
+    setResult(docToResult(prev));
+    handleSaveCaptionDoc(prev);
+    toast.success("Undone ↩", { duration: 1200 });
+  }, [historyUndo, handleSaveCaptionDoc]);
+
+  const handleRedo = useCallback(() => {
+    const next = historyRedo();
+    if (!next) { toast.info("Nothing to redo"); return; }
+    setResult(docToResult(next));
+    handleSaveCaptionDoc(next);
+    toast.success("Redone ↪", { duration: 1200 });
+  }, [historyRedo, handleSaveCaptionDoc]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    videoRef,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onToggleSearch: () => setShowSearch((v) => !v),
+    onTranscribe: () => { if (!transcribing && project?.media_id) handleTranscribe(); },
+    onEscape: () => setShowSearch(false),
+    enabled: !pageLoading,
+  });
+
+  // Search & Replace: batch replace all matches
+  const handleReplaceAll = useCallback((findText, replaceText, caseSensitive) => {
+    if (!captionDoc) return;
+    pushHistory(captionDoc);
+    const lFind = caseSensitive ? findText : findText.toLowerCase();
+    let count = 0;
+    const words = captionDoc.words.map((w) => {
+      const lWord = caseSensitive ? w.text : w.text.toLowerCase();
+      if (lWord === lFind.trim()) { count++; return { ...w, text: replaceText }; }
+      return w;
+    });
+    if (count === 0) { toast.info("No matches found"); return; }
+    const segments = captionDoc.segments.map((seg) => ({
+      ...seg,
+      text: words.filter((w) => seg.word_ids.includes(w.id)).map((w) => w.text).join(" "),
+    }));
+    const updated = { ...captionDoc, words, segments };
+    setCaptionDoc(updated);
+    setResult(docToResult(updated));
+    handleSaveCaptionDoc(updated);
+    toast.success(`Replaced ${count} instance${count !== 1 ? "s" : ""} of "${findText}"`); 
+  }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
+
+  const handleReplaceOne = useCallback((wordId, replaceText) => {
+    if (!captionDoc) return;
+    pushHistory(captionDoc);
+    const words = captionDoc.words.map((w) => w.id === wordId ? { ...w, text: replaceText } : w);
+    const segments = captionDoc.segments.map((seg) => ({
+      ...seg,
+      text: words.filter((w) => seg.word_ids.includes(w.id)).map((w) => w.text).join(" "),
+    }));
+    const updated = { ...captionDoc, words, segments };
+    setCaptionDoc(updated);
+    setResult(docToResult(updated));
+    handleSaveCaptionDoc(updated);
+    toast.success("Word replaced", { duration: 1200 });
+  }, [captionDoc, pushHistory, handleSaveCaptionDoc]);
+
   const handleTranscribe = async () => {
     setTranscribing(true);
+    resetHistory(null);
     setResult(null);
-    setCaptionDoc(null);
     try {
-      const params = denoise ? "?denoise=true" : "";
-      const { data } = await api.post(`/projects/${projectId}/transcribe${params}`);
+      const params = new URLSearchParams();
+      if (denoise) params.append("denoise", "true");
+      params.append("language", language);
+      const { data } = await api.post(`/projects/${projectId}/transcribe?${params.toString()}`);
       if (!data.words?.length) {
         toast.error("No speech detected in this clip.");
       } else {
-        setCaptionDoc(data);
+        resetHistory(data);
         setResult(docToResult(data));
         toast.success("Captions generated with semantic highlighting!");
       }
@@ -488,8 +580,40 @@ export default function Studio() {
 
       {/* Export toolbar — only visible when captions exist */}
       {result && (
-        <div className="flex items-center justify-end gap-3 px-6 lg:px-8 py-2 bg-white border-b border-gray-100">
+        <div className="flex items-center justify-end gap-3 px-6 lg:px-8 py-2 bg-white border-b border-gray-100 flex-wrap">
           <span className="text-xs text-gray-400 mr-auto">Studio</span>
+
+          {/* Undo / Redo */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+              data-testid="undo-btn"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Shift+Z)"
+              data-testid="redo-btn"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setShowSearch((v) => !v)}
+              title="Find & Replace (Ctrl+F)"
+              data-testid="search-btn"
+              className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
+                showSearch ? "bg-orange-50 text-[#FA5D29]" : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </div>
           
           <button
             onClick={handleStartRender}
@@ -555,7 +679,7 @@ export default function Studio() {
         </section>
 
         {/* Right Panel — Tabs: Transcript | AI Content */}
-        <div className="lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
           {/* Tab Bar */}
           <div className="flex border-b border-gray-100 shrink-0">
             <button
@@ -589,6 +713,16 @@ export default function Studio() {
             </button>
           </div>
 
+          {/* Search & Replace Panel overlay */}
+          {showSearch && captionDoc && (
+            <SearchReplacePanel
+              words={captionDoc.words || []}
+              onClose={() => setShowSearch(false)}
+              onReplaceAll={handleReplaceAll}
+              onReplaceOne={handleReplaceOne}
+            />
+          )}
+
           {/* Tab Content */}
           <div className="flex-1 min-h-0 overflow-hidden p-6">
             {activeTab === "transcript" ? (
@@ -608,6 +742,8 @@ export default function Studio() {
                 onSegmentMerge={handleSegmentMerge}
                 denoise={denoise}
                 onDenoiseChange={handleDenoiseChange}
+                language={language}
+                onLanguageChange={handleLanguageChange}
               />
             ) : (
               <ContentPanel

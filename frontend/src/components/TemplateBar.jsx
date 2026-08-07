@@ -94,7 +94,8 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
 
       {/* Advanced caption magic visual settings */}
       {showEffects && (
-        <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl flex-wrap">
+        <div className="flex flex-col gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl">
+          {/* Animation row */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-gray-500 mr-2 flex items-center gap-1">
               <Play className="h-3.5 w-3.5" /> Animation
@@ -118,6 +119,27 @@ export const TemplateBar = ({ value, onSelect, settings, onSettingsChange }) => 
             </div>
           </div>
 
+          {/* Words Per Line slider */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-500 shrink-0 flex items-center gap-1">
+              <Type className="h-3.5 w-3.5" /> Words/Line
+            </span>
+            <input
+              type="range"
+              min={1}
+              max={6}
+              step={1}
+              value={settings?.maxWords ?? 4}
+              onChange={(e) => onSettingsChange({ maxWords: Number(e.target.value) })}
+              data-testid="words-per-line-slider"
+              className="flex-1 h-1.5 rounded-full accent-[#FA5D29] cursor-pointer"
+            />
+            <span className="text-xs font-bold text-gray-700 w-5 text-center">
+              {settings?.maxWords ?? 4}
+            </span>
+          </div>
+
+          {/* Semantic & Emojis toggles */}
           <div className="flex items-center gap-2">
             <Seg active={eff.semanticHighlight} onClick={() => onSettingsChange({ semanticHighlight: !eff.semanticHighlight })} title="AI Highlight Entities" testId="toggle-semantic-highlight">
               <Sparkles className="h-3.5 w-3.5" /> Highlight

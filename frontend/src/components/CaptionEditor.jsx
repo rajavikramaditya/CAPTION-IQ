@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, WandSparkles, FileText, Merge, CheckCircle2, AlertCircle, Clock3, Mic, MicOff } from "lucide-react";
+import { Sparkles, Loader2, WandSparkles, FileText, Merge, CheckCircle2, AlertCircle, Clock3, Mic, MicOff, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Legend } from "@/components/Legend";
 import { SemanticWord } from "@/components/SemanticWord";
@@ -28,6 +28,23 @@ function SaveIndicator({ status }) {
   );
 }
 
+const LANGUAGES = [
+  { value: "hinglish",  label: "Hinglish (Roman)" },
+  { value: "hindi",     label: "हिंदी (Hindi)" },
+  { value: "english",   label: "English" },
+  { value: "urdu",      label: "اردو (Urdu)" },
+  { value: "tamil",     label: "தமிழ் (Tamil)" },
+  { value: "punjabi",   label: "ਪੰਜਾਬੀ (Punjabi)" },
+  { value: "bengali",   label: "বাংলা (Bengali)" },
+  { value: "marathi",   label: "मराठी (Marathi)" },
+  { value: "telugu",    label: "తెలుగు (Telugu)" },
+  { value: "kannada",   label: "ಕನ್ನಡ (Kannada)" },
+  { value: "malayalam", label: "മലയാളം (Malayalam)" },
+  { value: "gujarati",  label: "ગુજરાતી (Gujarati)" },
+  { value: "arabic",    label: "العربية (Arabic)" },
+  { value: "nepali",    label: "नेपाली (Nepali)" },
+];
+
 export const CaptionEditor = ({
   lines,
   captionDoc,
@@ -44,6 +61,8 @@ export const CaptionEditor = ({
   onSegmentMerge,
   denoise,
   onDenoiseChange,
+  language = "hinglish",
+  onLanguageChange,
 }) => {
   const activeRef = useRef(null);
   const hasCaptions = lines && lines.length > 0;
@@ -177,6 +196,22 @@ export const CaptionEditor = ({
 
       {hasVideo && (
         <div className="mt-4 space-y-2">
+          {/* Language Selector */}
+          <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2">
+            <Globe className="h-4 w-4 text-gray-400 shrink-0" />
+            <label className="text-sm font-medium text-gray-700 shrink-0">Language</label>
+            <select
+              value={language}
+              onChange={(e) => onLanguageChange?.(e.target.value)}
+              data-testid="language-selector"
+              className="flex-1 text-sm text-gray-700 bg-transparent focus:outline-none cursor-pointer"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Audio Enhancement Toggle */}
           <div
             className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 cursor-pointer"

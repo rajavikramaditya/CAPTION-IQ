@@ -71,9 +71,28 @@ def _gv(obj, key, default=None):
     return obj.get(key, default) if isinstance(obj, dict) else getattr(obj, key, default)
 
 
-async def transcribe_bytes(data: bytes, filename: str) -> CaptionDocument:
+async def transcribe_bytes(data: bytes, filename: str, language: str = "hinglish") -> CaptionDocument:
     if len(data) > 25 * 1024 * 1024:
         raise ValueError("File exceeds 25MB transcription limit.")
+
+    # Map UI language slug → Whisper language code & prompt
+    LANG_MAP = {
+        "hinglish":  {"code": None,  "prompt": "Hinglish (Roman Hindi) video caption. Keep names and places in Roman script."},
+        "hindi":     {"code": "hi",  "prompt": "Hindi video caption. Transcribe in Devanagari script."},
+        "english":   {"code": "en",  "prompt": "English video caption. Transcribe clearly."},
+        "urdu":      {"code": "ur",  "prompt": "Urdu video caption."},
+        "tamil":     {"code": "ta",  "prompt": "Tamil video caption."},
+        "punjabi":   {"code": "pa",  "prompt": "Punjabi video caption."},
+        "bengali":   {"code": "bn",  "prompt": "Bengali video caption."},
+        "marathi":   {"code": "mr",  "prompt": "Marathi video caption."},
+        "telugu":    {"code": "te",  "prompt": "Telugu video caption."},
+        "kannada":   {"code": "kn",  "prompt": "Kannada video caption."},
+        "malayalam": {"code": "ml",  "prompt": "Malayalam video caption."},
+        "gujarati":  {"code": "gu",  "prompt": "Gujarati video caption."},
+        "arabic":    {"code": "ar",  "prompt": "Arabic video caption."},
+        "nepali":    {"code": "ne",  "prompt": "Nepali video caption."},
+    }
+    lang_cfg = LANG_MAP.get(language, LANG_MAP["hinglish"])
 
     suffix = Path(filename or "clip.mp4").suffix or ".mp4"
     tmp_path = None
@@ -83,11 +102,14 @@ async def transcribe_bytes(data: bytes, filename: str) -> CaptionDocument:
             tmp_path = tmp.name
         stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
         with open(tmp_path, "rb") as audio_file:
-            resp = await stt.transcribe(
+            transcribe_kwargs = dict(
                 file=audio_file, model="whisper-1", response_format="verbose_json",
-                prompt="Hinglish (Roman Hindi) video caption. Keep names and places in Roman script.",
+                prompt=lang_cfg["prompt"],
                 temperature=0.0, timestamp_granularities=["segment", "word"],
             )
+            if lang_cfg["code"]:
+                transcribe_kwargs["language"] = lang_cfg["code"]
+            resp = await stt.transcribe(**transcribe_kwargs)
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -95,7 +117,7 @@ async def transcribe_bytes(data: bytes, filename: str) -> CaptionDocument:
     full_text = getattr(resp, "text", "") or ""
     raw_words = getattr(resp, "words", None) or []
     raw_segments = getattr(resp, "segments", None) or []
-    language = getattr(resp, "language", None)
+    language_detected = getattr(resp, "language", None)
     tags = await _tag_entities(full_text)
 
     words = []
@@ -136,7 +158,8 @@ async def transcribe_bytes(data: bytes, filename: str) -> CaptionDocument:
 
     duration = max((w.end for w in words), default=0.0)
     return CaptionDocument(
-        version=1, language=language, source="whisper",
+        version=1, language=language_detected or language, source="whisper",
         words=words, segments=segments,
         word_count=len(words), duration=duration,
     )
+

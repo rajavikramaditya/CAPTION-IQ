@@ -1,13 +1,21 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthCallback } from "@/components/AuthCallback";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import Dashboard from "@/pages/Dashboard";
 import Studio from "@/pages/Studio";
+import Landing from "@/pages/Landing";
+
+/** Smart home — authenticated users go straight to Dashboard, guests see Landing. */
+function SmartHome() {
+  const { user, loading } = useAuth();
+  if (loading) return null; // avoid flash
+  return user ? <Navigate to="/dashboard" replace /> : <Landing />;
+}
 
 function AppRoutes() {
   const location = useLocation();
@@ -19,6 +27,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={<SmartHome />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route
@@ -37,8 +46,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

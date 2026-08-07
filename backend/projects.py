@@ -80,6 +80,20 @@ async def delete_project(project_id: str, user: dict = Depends(get_current_user)
     return {"success": True}
 
 
+@router.patch("/{project_id}/title")
+async def rename_project(project_id: str, body: dict, user: dict = Depends(get_current_user)):
+    """Rename a project title inline from the dashboard."""
+    title = (body.get("title") or "").strip()[:120]
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    await _owned_project(project_id, user)
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"title": title, "updated_at": now_dt()}}
+    )
+    return {"success": True, "title": title}
+
+
 @router.post("/{project_id}/media")
 async def upload_media(project_id: str, file: UploadFile = File(...),
                        duration: float = Form(0.0), user: dict = Depends(get_current_user)):
@@ -150,6 +164,7 @@ async def stream_media(project_id: str, request: Request, user: dict = Depends(g
 async def transcribe_project(
     project_id: str,
     denoise: bool = Query(False, description="Run audio denoising before transcription"),
+    language: str = Query("hinglish", description="Language slug: hinglish | hindi | english | urdu | tamil ..."),
     user: dict = Depends(get_current_user),
 ):
     project = await _owned_project(project_id, user)
@@ -181,7 +196,7 @@ async def transcribe_project(
             await db.projects.update_one({"project_id": project_id},
                                          {"$set": {"status": "transcribing", "updated_at": now_dt()}})
 
-        doc = await transcribe_bytes(data, media.get("original_filename") or "clip.mp4")
+        doc = await transcribe_bytes(data, media.get("original_filename") or "clip.mp4", language=language)
     except ValueError as e:
         await _fail_job(job_id, project_id, str(e))
         raise HTTPException(status_code=413, detail=str(e))
